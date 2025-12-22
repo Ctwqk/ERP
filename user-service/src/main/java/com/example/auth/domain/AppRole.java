@@ -1,38 +1,35 @@
-package com.example.myerp.domain;
+package com.example.auth.domain;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Entity
-@Table(name = "app_user", uniqueConstraints = {
-    @UniqueConstraint(name = "ux_app_user_email", columnNames = "email")
-})
-public class AppUser {
+@Table(name = "app_roles")
+public class AppRole {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "name", nullable = false)
+    @Column(name = "name", nullable = false, unique = true)
     private String name;
 
-    @Column(name = "email", nullable = false, unique = true)
-    private String email;
-
-    @Column(name = "password_hash", nullable = false, length = 255)
-    private String passwordHash;
-
-    @Enumerated(EnumType.STRING)
-    @Column(name = "role", nullable = false, length = 20)
-    private UserRole role;
+    @Column(name = "active", nullable = false)
+    private Boolean active = true;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt;
+
+    @OneToMany(mappedBy = "role", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<AppUserRole> userRoles = new ArrayList<>();
 
     @PrePersist
     protected void onCreate() {
@@ -42,6 +39,9 @@ public class AppUser {
         if (updatedAt == null) {
             updatedAt = OffsetDateTime.now();
         }
+        if (active == null) {
+            active = true;
+        }
     }
 
     @PreUpdate
@@ -50,14 +50,12 @@ public class AppUser {
     }
 
     // Constructors
-    public AppUser() {
+    public AppRole() {
     }
 
-    public AppUser(String name, String email, String passwordHash, UserRole role) {
+    public AppRole(String name) {
         this.name = name;
-        this.email = email;
-        this.passwordHash = passwordHash;
-        this.role = role;
+        this.active = true;
     }
 
     // Getters and Setters
@@ -77,28 +75,12 @@ public class AppUser {
         this.name = name;
     }
 
-    public String getEmail() {
-        return email;
+    public Boolean getActive() {
+        return active;
     }
 
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-
-    public UserRole getRole() {
-        return role;
-    }
-
-    public void setRole(UserRole role) {
-        this.role = role;
+    public void setActive(Boolean active) {
+        this.active = active;
     }
 
     public OffsetDateTime getCreatedAt() {
@@ -117,9 +99,28 @@ public class AppUser {
         this.updatedAt = updatedAt;
     }
 
-    // Enum for UserRole
-    public enum UserRole {
-        ADMIN, USER  // Note: SQL has 'app_user' but using USER for enum
+    public List<AppUserRole> getUserRoles() {
+        return userRoles;
+    }
+
+    public void setUserRoles(List<AppUserRole> userRoles) {
+        this.userRoles = userRoles;
+    }
+
+    public void addUserRole(AppUserRole userRole) {
+        userRoles.add(userRole);
+        userRole.setRole(this);
+    }
+
+    public void removeUserRole(AppUserRole userRole) {
+        userRoles.remove(userRole);
+        userRole.setRole(null);
+    }
+
+    public List<String> getUsers() {
+        return userRoles.stream()
+                .map(ur -> ur.getUser() != null ? ur.getUser().getName() : null)
+                .filter(Objects::nonNull)
+                .toList();
     }
 }
-

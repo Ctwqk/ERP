@@ -101,18 +101,18 @@ join bom_line bl on bl.bom_id = b.id
 where b.status = 'ACTIVE';
 
 
--- =====================
--- app_user
--- =====================
-create table if not exists app_user (
-    id uuid primary key default gen_random_uuid(),
-    name text not null,
-    email text not null unique,
-    password_hash varchar(255) not null,
-    role text not null check (role in ('ADMIN','app_user')),
-    created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
-)
+-- -- =====================
+-- -- app_user
+-- -- =====================
+-- create table if not exists app_user (
+--     id uuid primary key default gen_random_uuid(),
+--     name text not null,
+--     email text not null unique,
+--     password_hash varchar(255) not null,
+--     role text not null check (role in ('ADMIN','app_user')),
+--     created_at timestamptz not null default now(),
+--     updated_at timestamptz not null default now()
+-- )
 
 
 -- Revised DDL with necessary fixes + minimal structural improvements
@@ -128,7 +128,6 @@ create table if not exists app_user (
 --    Here I keep qty_* on task but also enforce consistency, and make them default 0.
 -- 9) Add basic indexes and checks.
 
-create extension if not exists pgcrypto;
 
 -- =====================
 -- ORDER (rename from "order" to avoid reserved keyword)
@@ -242,7 +241,8 @@ create table if not exists task (
   qty_scrap            numeric(18,6) not null default 0 check (qty_scrap >= 0),
   qty_scrap_rate       numeric(9,6)  not null default 0 check (qty_scrap_rate >= 0 and qty_scrap_rate < 1),
 
-  assignee_user_id     uuid not null references app_user(id),
+  assignee_user_id     uuid not null,
+  -- assignee_user_id     uuid not null references app_user(id),
 
   start_time           timestamptz not null,
   end_time             timestamptz,
@@ -287,7 +287,9 @@ create table if not exists document (
   encryption text not null check (encryption in ('SSE_S3','SSE_KMS','CLIENT_SIDE')),
   kms_key_id text,
 
-  created_by_user_id uuid references app_user(id),
+  created_by_user_id uuid,
+  -- created_by_user_id uuid references app_user(id),
+
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
 

@@ -56,9 +56,8 @@ public class Task {
     @Column(name = "qty_scrap_rate", nullable = false, precision = 9, scale = 6)
     private BigDecimal qtyScrapRate = BigDecimal.ZERO;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assignee_user_id", nullable = false)
-    private AppUser assigneeUser;
+    @Column(name = "assignee_user_id", nullable = false)
+    private UUID assigneeUserId;
 
     @Column(name = "start_time", nullable = false)
     private OffsetDateTime startTime;
@@ -102,14 +101,14 @@ public class Task {
 
     public Task(ManufactureOrder manufactureOrder, String taskCode, TaskType taskType, 
                 TaskStatus taskStatus, OffsetDateTime taskDate, BigDecimal qtyPlanned, 
-                AppUser assigneeUser, OffsetDateTime startTime) {
+                UUID assigneeUserId, OffsetDateTime startTime) {
         this.manufactureOrder = manufactureOrder;
         this.taskCode = taskCode;
         this.taskType = taskType;
         this.taskStatus = taskStatus;
         this.taskDate = taskDate;
         this.qtyPlanned = qtyPlanned;
-        this.assigneeUser = assigneeUser;
+        this.assigneeUserId = assigneeUserId;
         this.startTime = startTime;
         this.qtyProduced = BigDecimal.ZERO;
         this.qtyScrap = BigDecimal.ZERO;
@@ -205,12 +204,12 @@ public class Task {
         this.qtyScrapRate = qtyScrapRate;
     }
 
-    public AppUser getAssigneeUser() {
-        return assigneeUser;
+    public UUID getAssigneeUserId() {
+        return assigneeUserId;
     }
 
-    public void setAssigneeUser(AppUser assigneeUser) {
-        this.assigneeUser = assigneeUser;
+    public void setAssigneeUserId(UUID assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
     }
 
     public OffsetDateTime getStartTime() {

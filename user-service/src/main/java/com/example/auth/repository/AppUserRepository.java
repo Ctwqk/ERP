@@ -1,6 +1,6 @@
-package com.example.myerp.repository;
+package com.example.auth.repository;
 
-import com.example.myerp.domain.AppUser;
+import com.example.auth.domain.AppUser;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -11,4 +11,3 @@ import java.util.UUID;
 public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     Optional<AppUser> findByEmail(String email);
 }
-

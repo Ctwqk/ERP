@@ -38,9 +38,8 @@ public class ErpOrder {
     @Column(name = "order_note", columnDefinition = "TEXT")
     private String orderNote;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assignee_user_id", nullable = false)
-    private AppUser assigneeUser;
+    @Column(name = "assignee_user_id", nullable = false)
+    private UUID assigneeUserId;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -73,11 +72,11 @@ public class ErpOrder {
     public ErpOrder() {
     }
 
-    public ErpOrder(String orderCode, OrderType orderType, OrderStatus orderStatus, AppUser assigneeUser) {
+    public ErpOrder(String orderCode, OrderType orderType, OrderStatus orderStatus, UUID assigneeUserId) {
         this.orderCode = orderCode;
         this.orderType = orderType;
         this.orderStatus = orderStatus;
-        this.assigneeUser = assigneeUser;
+        this.assigneeUserId = assigneeUserId;
         this.orderDate = OffsetDateTime.now();
     }
 
@@ -130,12 +129,12 @@ public class ErpOrder {
         this.orderNote = orderNote;
     }
 
-    public AppUser getAssigneeUser() {
-        return assigneeUser;
+    public UUID getAssigneeUserId() {
+        return assigneeUserId;
     }
 
-    public void setAssigneeUser(AppUser assigneeUser) {
-        this.assigneeUser = assigneeUser;
+    public void setAssigneeUserId(UUID assigneeUserId) {
+        this.assigneeUserId = assigneeUserId;
     }
 
     public OffsetDateTime getCreatedAt() {
