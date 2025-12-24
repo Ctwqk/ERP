@@ -16,8 +16,9 @@ public class AppRole {
     @Column(name = "id", nullable = false, updatable = false)
     private UUID id;
 
-    @Column(name = "name", nullable = false, unique = true)
-    private String name;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "name", nullable = false, unique = true, length = 32)
+    private RoleName name;
 
     @Column(name = "active", nullable = false)
     private Boolean active = true;
@@ -53,7 +54,7 @@ public class AppRole {
     public AppRole() {
     }
 
-    public AppRole(String name) {
+    public AppRole(RoleName name) {
         this.name = name;
         this.active = true;
     }
@@ -67,11 +68,11 @@ public class AppRole {
         this.id = id;
     }
 
-    public String getName() {
+    public RoleName getName() {
         return name;
     }
 
-    public void setName(String name) {
+    public void setName(RoleName name) {
         this.name = name;
     }
 
@@ -122,5 +123,9 @@ public class AppRole {
                 .map(ur -> ur.getUser() != null ? ur.getUser().getName() : null)
                 .filter(Objects::nonNull)
                 .toList();
+    }
+
+    public enum RoleName {
+        ADMIN, HR, SALE, FINANCE, MANAGER, EMPLOYEE, USER, GUEST
     }
 }

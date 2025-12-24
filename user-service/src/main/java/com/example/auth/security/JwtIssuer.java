@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -19,8 +20,8 @@ public class JwtIssuer {
     @Value("${security.jwt.issuer:auth-service}")
     private String issuer;
 
-    @Value("${security.jwt.access-seconds:3600}")
-    private long accessSeconds;
+    @Value("${security.jwt.access-minutes:500}")
+    private long accessMinutes;
 
     public JwtIssuer(JwksProvider jwksProvider) {
         this.jwksProvider = jwksProvider;
@@ -29,7 +30,7 @@ public class JwtIssuer {
     public String issueToken(UUID userId, String email, List<String> roles) {
         try {
             Instant now = Instant.now();
-            Instant exp = now.plusSeconds(accessSeconds);
+            Instant exp = now.plus(Duration.ofMinutes(accessMinutes));
 
             JWTClaimsSet claims = new JWTClaimsSet.Builder()
                     .issuer(issuer)
@@ -38,6 +39,7 @@ public class JwtIssuer {
                     .claim("roles", roles) // ["ROLE_ADMIN", ...]
                     .issueTime(Date.from(now))
                     .expirationTime(Date.from(exp))
+                    .jwtID(UUID.randomUUID().toString())
                     .build();
 
             JWSHeader header = new JWSHeader.Builder(JWSAlgorithm.RS256)

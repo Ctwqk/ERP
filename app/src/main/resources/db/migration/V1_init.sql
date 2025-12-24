@@ -44,7 +44,6 @@ create table if not exists bom (
   status          text not null check (status in ('DRAFT','ACTIVE','OBSOLETE')),
   effective_from  timestamptz not null default now(),
   effective_to    timestamptz,
-
   note            text,
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),

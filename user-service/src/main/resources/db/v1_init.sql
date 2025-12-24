@@ -5,7 +5,6 @@ create table if not exists app_user (
     name text not null,
     email text not null unique,
     password_hash varchar(255) not null,
-    role text not null check (role in ('ADMIN','app_user')),
     active boolean not null default true,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -15,7 +14,7 @@ create table if not exists app_user (
 
 create table is not exists app_roles {
     id uuid primary key default gen_random_uuid(),
-    name text not null,
+    name text not null check (name in ('ADMIN','HR','SALE','FINANCE','MANAGER','EMPLOYEE','USER','GUEST')),
     active boolean not null default true,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()

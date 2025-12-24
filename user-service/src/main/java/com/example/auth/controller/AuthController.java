@@ -3,8 +3,13 @@ package com.example.auth.controller;
 import com.example.auth.domain.AppUser;
 import com.example.auth.repository.AppUserRepository;
 import com.example.auth.security.JwtIssuer;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import com.example.auth.service.AuthService;
+import com.example.auth.dto.LoginRequest;
+import com.example.auth.dto.LoginResponse;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpHeaders;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -12,35 +17,26 @@ import java.util.List;
 @RequestMapping("/auth")
 public class AuthController {
 
-    private final AppUserRepository userRepo;
-    private final PasswordEncoder encoder;
-    private final JwtIssuer jwtIssuer;
+    private final AuthService authService;
 
-    public AuthController(AppUserRepository userRepo, PasswordEncoder encoder, JwtIssuer jwtIssuer) {
-        this.userRepo = userRepo;
-        this.encoder = encoder;
-        this.jwtIssuer = jwtIssuer;
-    }
-
-    public record LoginRequest(String email, String password) {
-    }
-
-    public record LoginResponse(String accessToken) {
+    public AuthController(AuthService authService) {
+        this.authService = authService;
     }
 
     @PostMapping("/login")
     public LoginResponse login(@RequestBody LoginRequest req) {
-        AppUser u = userRepo.findByEmail(req.email())
-                .orElseThrow(() -> new RuntimeException("Bad credentials"));
+        return authService.login(req);
+    }
 
-        if (!encoder.matches(req.password(), u.getPasswordHash())) {
-            throw new RuntimeException("Bad credentials");
+    @PostMapping("/logout")
+    public void logout(@RequestHeader(name = "Authorization", required = false) String authorization) {
+        if (authorization == null || !authorization.startsWith("Bearer ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
         }
-
-        // roles 统一输出 ROLE_ 前缀
-        List<String> roles = u.getRoles().stream().map(r -> "ROLE_" + r).toList();
-
-        String token = jwtIssuer.issueToken(u.getId(), u.getEmail(), roles);
-        return new LoginResponse(token);
+        if (!authorization.startsWith("Bearer ")) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthorized");
+        }
+        String token = authorization.substring("Bearer ".length()).trim();
+        authService.logout(token);
     }
 }

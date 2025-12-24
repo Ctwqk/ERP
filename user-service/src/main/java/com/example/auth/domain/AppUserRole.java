@@ -56,6 +56,19 @@ public class AppUserRole {
         this.role = role;
     }
 
+    /**
+     * Convenience constructor when only IDs are available (avoids loading
+     * entities).
+     */
+    public AppUserRole(UUID userId, UUID roleId) {
+        AppUser u = new AppUser();
+        u.setId(userId);
+        AppRole r = new AppRole();
+        r.setId(roleId);
+        this.user = u;
+        this.role = r;
+    }
+
     // Getters and Setters
     public AppUser getUser() {
         return user;

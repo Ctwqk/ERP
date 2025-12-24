@@ -148,7 +148,8 @@ public class AppUser {
      */
     public List<String> getRoles() {
         return userRoles.stream()
-                .map(ur -> ur.getRole() != null ? ur.getRole().getName() : null)
+                .map(ur -> ur.getRole() != null && ur.getRole().getName() != null ? ur.getRole().getName().name()
+                        : null)
                 .filter(Objects::nonNull)
                 .toList();
     }

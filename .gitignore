@@ -113,3 +113,4 @@ coverage/
 # Application specific
 api.txt
 
+auth-keystore.p12
