@@ -30,3 +30,14 @@ create table if not exists task_link (
 create index if not exists idx_task_link_task on task_link(task_id);
 create index if not exists idx_task_link_reftype on task_link(ref_type);
 
+create table if not exists mo_task_link (
+    id uuid primary key default gen_random_uuid(),
+    mo_id uuid not null,
+    task_id uuid not null references task(id) on delete cascade,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_mo_task_link_mo on mo_task_link(mo_id);
+create index if not exists idx_mo_task_link_task on mo_task_link(task_id);
+
