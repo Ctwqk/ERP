@@ -16,7 +16,7 @@ public class ItemDto {
     private String description;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
-    private List<DocumentDto> documents;
+    private List<UUID> documentIds;
 
     public ItemDto() {
     }
@@ -33,12 +33,12 @@ public class ItemDto {
         this.updatedAt = item.getUpdatedAt();
     }
 
-    public List<DocumentDto> getDocuments() {
-        return documents;
+    public List<UUID> getDocumentIds() {
+        return documentIds;
     }
 
-    public void setDocuments(List<DocumentDto> documents) {
-        this.documents = documents;
+    public void setDocumentIds(List<UUID> documentIds) {
+        this.documentIds = documentIds;
     }
 
     public UUID getId() {

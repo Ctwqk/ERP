@@ -1,0 +1,13 @@
+package com.example.notification.repository;
+
+import com.example.notification.domain.Notification;
+import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface NotificationRepository extends JpaRepository<Notification, UUID> {
+    Page<Notification> findByRecipientUserId(UUID recipientUserId, Pageable pageable);
+    Page<Notification> findByRecipientUserIdAndStatus(UUID recipientUserId, Notification.Status status, Pageable pageable);
+}
+

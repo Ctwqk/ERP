@@ -6,3 +6,4 @@ import jakarta.validation.constraints.NotNull;
 public record UpdateOrderStatusRequest(@NotNull Status status) {
 }
 
+

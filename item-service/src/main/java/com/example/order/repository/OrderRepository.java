@@ -10,3 +10,4 @@ public interface OrderRepository extends JpaRepository<Order, UUID> {
     Page<Order> findByUserIdOrderByCreatedAtDesc(String userId, Pageable pageable);
 }
 
+

@@ -6,3 +6,4 @@ public interface ItemLookupClient {
     void assertItemsExist(List<ItemReference> items);
 }
 
+

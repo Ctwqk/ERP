@@ -57,3 +57,4 @@ public interface DocumentRepository extends JpaRepository<Document, UUID> {
             @Param("kmsKeyId") String kmsKeyId,
             @Param("createdByUserId") UUID createdByUserId);
 }
+
