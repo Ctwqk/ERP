@@ -71,8 +71,20 @@ public class AppRoleServiceImpl implements AppRoleService {
 
     @Override
     public AppRoleDto updateRole(AppRoleDto role) {
-        RoleName rn = parse(role.getName());
-        return new AppRoleDto(appRoleRepository.save(new AppRole(rn)));
+        if (role.getId() == null) {
+            throw new RuntimeException("Role ID is required");
+        }
+        RoleName rn = role.getName() != null ? parse(role.getName()) : null;
+        int updated = appRoleRepository.patchRole(
+                role.getId(),
+                rn != null ? rn.name() : null,
+                null);
+        if (updated == 0) {
+            throw new RuntimeException("Role not found");
+        }
+        AppRole reloaded = appRoleRepository.findById(role.getId())
+                .orElseThrow(() -> new RuntimeException("Role not found"));
+        return new AppRoleDto(reloaded);
     }
 
     @Override

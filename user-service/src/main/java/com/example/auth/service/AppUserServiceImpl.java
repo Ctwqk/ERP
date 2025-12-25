@@ -16,6 +16,8 @@ import com.example.auth.domain.AppRole;
 import com.example.auth.repository.AppRoleRepository;
 import com.example.auth.dto.AppUserDto;
 import com.example.auth.dto.AppRoleDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 @Service
 @Transactional
@@ -58,16 +60,18 @@ public class AppUserServiceImpl implements AppUserService {
 
     @Override
     public void disableUser(UUID id) {
-        AppUser user = appUserRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
-        user.setActive(false);
-        appUserRepository.save(user);
+        int updated = appUserRepository.patchUser(id, null, null, null, false);
+        if (updated == 0) {
+            throw new RuntimeException("User not found");
+        }
     }
 
     @Override
     public void enableUser(UUID id) {
-        AppUser user = appUserRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
-        user.setActive(true);
-        appUserRepository.save(user);
+        int updated = appUserRepository.patchUser(id, null, null, null, true);
+        if (updated == 0) {
+            throw new RuntimeException("User not found");
+        }
     }
 
     @Override
@@ -119,22 +123,26 @@ public class AppUserServiceImpl implements AppUserService {
         }
 
         user.setPasswordHash(passwordEncoder.encode(newPassword));
-        appUserRepository.save(user);
+        appUserRepository.patchUser(userId, null, null, user.getPasswordHash(), null);
     }
 
     @Override
     public AppUserDto updateUser(AppUserDto user) {
-        AppUser existing = appUserRepository.findById(user.getId())
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        existing.setName(user.getName());
-        existing.setEmail(user.getEmail());
-        if (user.getActive() != null) {
-            existing.setActive(user.getActive());
+        if (user.getId() == null) {
+            throw new RuntimeException("User ID is required");
         }
-
-        AppUser saved = appUserRepository.save(existing);
-        return new AppUserDto(saved);
+        int updated = appUserRepository.patchUser(
+                user.getId(),
+                user.getName(),
+                user.getEmail(),
+                null,
+                user.getActive());
+        if (updated == 0) {
+            throw new RuntimeException("User not found");
+        }
+        AppUser reloaded = appUserRepository.findById(user.getId())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        return new AppUserDto(reloaded);
     }
 
     @Override
@@ -145,6 +153,12 @@ public class AppUserServiceImpl implements AppUserService {
     @Override
     public List<AppUserDto> getAllUsers() {
         return appUserRepository.findAll().stream().map(AppUserDto::new).collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AppUserDto> searchUsers(String keyword, Boolean active, Pageable pageable) {
+        return appUserRepository.search(keyword, active, pageable).map(AppUserDto::new);
     }
 
 }

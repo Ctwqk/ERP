@@ -5,12 +5,14 @@ import com.example.auth.domain.AppRole.RoleName;
 import com.example.auth.repository.AppUserRoleRepository;
 import com.example.auth.service.AppUserService;
 import com.example.auth.service.AppRoleService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
-import java.util.List;
 import java.util.UUID;
 import com.example.auth.security.SecurityUtils;
 
@@ -30,8 +32,10 @@ public class AppUserController {
     }
 
     @GetMapping
-    public List<AppUserDto> list() {
-        return userService.getAllUsers();
+    public Page<AppUserDto> list(@RequestParam(required = false) String keyword,
+            @RequestParam(required = false) Boolean active,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return userService.searchUsers(keyword, active, pageable);
     }
 
     @GetMapping("/{id}")

@@ -1,45 +1,27 @@
 package com.example.item.domain;
 
-import jakarta.persistence.*;
 import java.io.Serializable;
 import java.time.OffsetDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
-@Entity
-@Table(name = "item_document", indexes = {
-        @Index(name = "idx_item_document_item", columnList = "item_id"),
-        @Index(name = "idx_item_document_doc", columnList = "document_id")
-})
-@IdClass(ItemDocument.ItemDocumentId.class)
+/**
+ * Legacy placeholder (was item_document). Document linking now uses
+ * document_link in the document module.
+ * Kept for reference only; not mapped as an entity.
+ */
+@Deprecated
 public class ItemDocument {
 
-    @Id
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "item_id", nullable = false)
     private Item item;
 
-    @Id
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "document_id", nullable = false)
-    private Document document;
+    private UUID documentId;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "relation_type", nullable = false, length = 16)
     private RelationType relationType;
 
-    @Column(name = "is_current", nullable = false)
     private Boolean isCurrent = true;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = OffsetDateTime.now();
-        }
-    }
 
     public enum RelationType {
         PRIMARY, REFERENCE
@@ -53,12 +35,12 @@ public class ItemDocument {
         this.item = item;
     }
 
-    public Document getDocument() {
-        return document;
+    public UUID getDocumentId() {
+        return documentId;
     }
 
-    public void setDocument(Document document) {
-        this.document = document;
+    public void setDocumentId(UUID documentId) {
+        this.documentId = documentId;
     }
 
     public RelationType getRelationType() {
@@ -87,30 +69,29 @@ public class ItemDocument {
 
     public static class ItemDocumentId implements Serializable {
         private UUID item;
-        private UUID document;
+        private UUID documentId;
 
         public ItemDocumentId() {
         }
 
         public ItemDocumentId(UUID item, UUID document) {
             this.item = item;
-            this.document = document;
+            this.documentId = document;
         }
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o)
+                return true;
+            if (o == null || getClass() != o.getClass())
+                return false;
             ItemDocumentId that = (ItemDocumentId) o;
-            return Objects.equals(item, that.item) && Objects.equals(document, that.document);
+            return Objects.equals(item, that.item) && Objects.equals(documentId, that.documentId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(item, document);
+            return Objects.hash(item, documentId);
         }
     }
 }
-
-
-

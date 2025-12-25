@@ -13,7 +13,7 @@ public record ItemDocumentDto(
         OffsetDateTime createdAt) {
     public ItemDocumentDto(ItemDocument link) {
         this(link.getItem() != null ? link.getItem().getId() : null,
-                link.getDocument() != null ? link.getDocument().getId() : null,
+                link.getDocumentId(),
                 link.getRelationType(),
                 link.getCurrent(),
                 link.getCreatedAt());

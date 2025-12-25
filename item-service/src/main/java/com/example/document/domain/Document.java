@@ -1,4 +1,4 @@
-package com.example.item.domain;
+package com.example.document.domain;
 
 import jakarta.persistence.*;
 import java.time.OffsetDateTime;
@@ -97,19 +97,19 @@ public class Document {
     }
 
     public enum DocType {
-        DRAWING, SPEC, WORK_INSTRUCTION, CERT
+        GENERIC, IMAGE, PDF
     }
 
     public enum Classification {
-        INTERNAL, CONFIDENTIAL, SECRET
+        PUBLIC, INTERNAL, CONFIDENTIAL
     }
 
     public enum Status {
-        DRAFT, APPROVED, OBSOLETE
+        DRAFT, APPROVED, ARCHIVED
     }
 
     public enum Encryption {
-        SSE_S3, SSE_KMS, CLIENT_SIDE
+        NONE, SSE_S3, SSE_KMS
     }
 
     public UUID getId() {
@@ -280,6 +280,3 @@ public class Document {
         this.updatedAt = updatedAt;
     }
 }
-
-
-

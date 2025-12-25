@@ -8,7 +8,4 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ItemDocumentRepository extends JpaRepository<ItemDocument, ItemDocumentId> {
     List<ItemDocument> findAllByItemId(UUID itemId);
-
-    List<ItemDocument> findAllByItem(UUID itemId);
-
 }

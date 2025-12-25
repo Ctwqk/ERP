@@ -1,9 +1,10 @@
 package com.example.auth.service;
 
-import com.example.auth.domain.AppUser;
 import com.example.auth.domain.AppRole.RoleName;
 import com.example.auth.dto.AppUserDto;
 import com.example.auth.dto.AppRoleDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.util.List;
 import java.util.UUID;
@@ -20,6 +21,8 @@ public interface AppUserService {
     void enableUser(UUID id);
 
     List<AppUserDto> getAllUsers();
+
+    Page<AppUserDto> searchUsers(String keyword, Boolean active, Pageable pageable);
 
     List<AppRoleDto> getUsersByRoleIds(List<UUID> roleIds);
 

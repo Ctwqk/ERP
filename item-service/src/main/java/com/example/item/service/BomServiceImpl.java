@@ -1,13 +1,14 @@
 package com.example.item.service;
 
 import com.example.item.domain.Bom;
-import com.example.item.domain.BomLine;
 import com.example.item.domain.Item;
 import com.example.item.dto.BomDto;
 import com.example.item.dto.BomLineDto;
 import com.example.item.repository.BomLineRepository;
 import com.example.item.repository.BomRepository;
 import com.example.item.repository.ItemRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,6 +42,11 @@ public class BomServiceImpl implements BomService {
         if (bomDto.getStatus() == null) {
             throw new RuntimeException("Status is required");
         }
+        if (bomRepository.existsByProductItemIdAndRevisionAndStatus(bomDto.getProductItemId(), bomDto.getRevision(),
+                Bom.BomStatus.ACTIVE)) {
+            throw new RuntimeException("Active BOM already exists for this product and revision");
+        }
+
         Bom saved = bomRepository.save(toEntity(bomDto));
         return new BomDto(saved);
     }
@@ -59,17 +65,35 @@ public class BomServiceImpl implements BomService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<BomDto> searchBoms(UUID productItemId, String revision, Bom.BomStatus status, Pageable pageable) {
+        Page<Bom> page = bomRepository.search(
+                productItemId,
+                revision,
+                status != null ? status.name() : null,
+                pageable);
+        return page.map(BomDto::new);
+    }
+
+    @Override
     public BomDto updateBom(BomDto bomDto) {
-        Bom existing = bomRepository.findById(bomDto.getId())
+        if (bomDto.getId() == null) {
+            throw new RuntimeException("BOM ID is required");
+        }
+        int updated = bomRepository.patchBom(
+                bomDto.getId(),
+                bomDto.getRevision(),
+                bomDto.getStatus() != null ? bomDto.getStatus().name() : null,
+                bomDto.getEffectiveFrom(),
+                bomDto.getEffectiveTo(),
+                bomDto.getNote());
+        if (updated == 0) {
+            throw new RuntimeException("BOM not found");
+        }
+        Bom reloaded = bomRepository.findById(bomDto.getId())
                 .orElseThrow(() -> new RuntimeException("BOM not found"));
-        existing.setRevision(bomDto.getRevision());
-        existing.setStatus(bomDto.getStatus());
-        existing.setEffectiveFrom(bomDto.getEffectiveFrom());
-        existing.setEffectiveTo(bomDto.getEffectiveTo());
-        existing.setNote(bomDto.getNote());
         // 不直接更新 lines，这里保持简单，如需同步行可扩展
-        Bom saved = bomRepository.save(existing);
-        return new BomDto(saved);
+        return new BomDto(reloaded);
     }
 
     @Override
@@ -96,11 +120,21 @@ public class BomServiceImpl implements BomService {
                     .orElseThrow(() -> new RuntimeException("Item not found"));
             bom.setProductItem(item);
         }
-        bom.setRevision(dto.getRevision());
-        bom.setStatus(dto.getStatus());
-        bom.setEffectiveFrom(dto.getEffectiveFrom());
-        bom.setEffectiveTo(dto.getEffectiveTo());
-        bom.setNote(dto.getNote());
+        if (dto.getRevision() != null) {
+            bom.setRevision(dto.getRevision());
+        }
+        if (dto.getStatus() != null) {
+            bom.setStatus(dto.getStatus());
+        }
+        if (dto.getEffectiveFrom() != null) {
+            bom.setEffectiveFrom(dto.getEffectiveFrom());
+        }
+        if (dto.getEffectiveTo() != null) {
+            bom.setEffectiveTo(dto.getEffectiveTo());
+        }
+        if (dto.getNote() != null) {
+            bom.setNote(dto.getNote());
+        }
         // 不处理行，保持简单；行通常单独接口维护
         return bom;
     }

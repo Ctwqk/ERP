@@ -1,10 +1,10 @@
-package com.example.item.dto;
+package com.example.document.dto;
 
-import com.example.item.domain.Document;
-import com.example.item.domain.Document.Classification;
-import com.example.item.domain.Document.DocType;
-import com.example.item.domain.Document.Encryption;
-import com.example.item.domain.Document.Status;
+import com.example.document.domain.Document;
+import com.example.document.domain.Document.Classification;
+import com.example.document.domain.Document.DocType;
+import com.example.document.domain.Document.Encryption;
+import com.example.document.domain.Document.Status;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 

@@ -2,12 +2,14 @@ package com.example.item.service;
 
 import com.example.item.domain.Item;
 import com.example.item.domain.Uom;
-import com.example.item.domain.ItemDocument;
-import com.example.item.dto.DocumentDto;
+import com.example.document.domain.DocumentLink;
+import com.example.document.domain.DocumentLink.LinkType;
 import com.example.item.dto.ItemDto;
 import com.example.item.repository.ItemRepository;
 import com.example.item.repository.UomRepository;
-import com.example.item.repository.ItemDocumentRepository;
+import com.example.document.repository.DocumentLinkRepository;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,13 +23,13 @@ public class ItemServiceImpl implements ItemService {
 
     private final ItemRepository itemRepository;
     private final UomRepository uomRepository;
-    private final ItemDocumentRepository itemDocumentRepository;
+    private final DocumentLinkRepository documentLinkRepository;
 
     public ItemServiceImpl(ItemRepository itemRepository, UomRepository uomRepository,
-            ItemDocumentRepository itemDocumentRepository) {
+            DocumentLinkRepository documentLinkRepository) {
         this.itemRepository = itemRepository;
         this.uomRepository = uomRepository;
-        this.itemDocumentRepository = itemDocumentRepository;
+        this.documentLinkRepository = documentLinkRepository;
     }
 
     @Override
@@ -66,21 +68,41 @@ public class ItemServiceImpl implements ItemService {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Page<ItemDto> searchItems(String keyword, Item.ItemType itemType, Boolean active, Pageable pageable) {
+        Page<Item> page = itemRepository.search(
+                keyword,
+                itemType != null ? itemType.name() : null,
+                active,
+                pageable);
+        return page.map(ItemDto::new);
+    }
+
+    @Override
     public ItemDto updateItem(ItemDto itemDto) {
-        Item existing = itemRepository.findById(itemDto.getId())
-                .orElseThrow(() -> new RuntimeException("Item not found"));
-        existing.setName(itemDto.getName());
-        existing.setSkuCode(itemDto.getSkuCode());
-        existing.setItemType(itemDto.getItemType());
-        existing.setActive(itemDto.getActive());
-        existing.setDescription(itemDto.getDescription());
-        if (itemDto.getBaseUomId() != null) {
-            Uom uom = uomRepository.findById(itemDto.getBaseUomId())
-                    .orElseThrow(() -> new RuntimeException("UOM not found"));
-            existing.setBaseUom(uom);
+        if (itemDto.getId() == null) {
+            throw new RuntimeException("Item ID is required");
         }
-        Item saved = itemRepository.save(existing);
-        return new ItemDto(saved);
+        if (itemDto.getBaseUomId() != null) {
+            uomRepository.findById(itemDto.getBaseUomId())
+                    .orElseThrow(() -> new RuntimeException("UOM not found"));
+        }
+
+        int updated = itemRepository.patchItem(
+                itemDto.getId(),
+                itemDto.getName(),
+                itemDto.getSkuCode(),
+                itemDto.getItemType() != null ? itemDto.getItemType().name() : null,
+                itemDto.getActive(),
+                itemDto.getDescription(),
+                itemDto.getBaseUomId());
+
+        if (updated == 0) {
+            throw new RuntimeException("Item not found");
+        }
+        Item reloaded = itemRepository.findById(itemDto.getId())
+                .orElseThrow(() -> new RuntimeException("Item not found"));
+        return new ItemDto(reloaded);
     }
 
     @Override
@@ -90,21 +112,32 @@ public class ItemServiceImpl implements ItemService {
 
     @Override
     @Transactional(readOnly = true)
-    public List<DocumentDto> getDocumentsByItemId(UUID id) {
-        return itemDocumentRepository.findAllByItemId(id).stream()
-                .map(ItemDocument::getDocument)
-                .map(DocumentDto::new)
+    public List<UUID> getDocumentsByItemId(UUID id) {
+        return documentLinkRepository.findAllByLinkIdAndLinkType(id, LinkType.ITEM).stream()
+                .map(DocumentLink::getDocumentId)
                 .collect(Collectors.toList());
     }
 
     private Item toEntity(ItemDto dto) {
         Item item = new Item();
-        item.setId(dto.getId());
-        item.setSkuCode(dto.getSkuCode());
-        item.setName(dto.getName());
-        item.setItemType(dto.getItemType());
-        item.setActive(dto.getActive() != null ? dto.getActive() : true);
-        item.setDescription(dto.getDescription());
+        if (dto.getId() != null) {
+            item.setId(dto.getId());
+        }
+        if (dto.getSkuCode() != null) {
+            item.setSkuCode(dto.getSkuCode());
+        }
+        if (dto.getName() != null) {
+            item.setName(dto.getName());
+        }
+        if (dto.getItemType() != null) {
+            item.setItemType(dto.getItemType());
+        }
+        if (dto.getActive() != null) {
+            item.setActive(dto.getActive());
+        }
+        if (dto.getDescription() != null) {
+            item.setDescription(dto.getDescription());
+        }
         if (dto.getBaseUomId() != null) {
             Uom uom = uomRepository.findById(dto.getBaseUomId())
                     .orElseThrow(() -> new RuntimeException("UOM not found"));
