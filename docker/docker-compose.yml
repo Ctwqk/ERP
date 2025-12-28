@@ -77,42 +77,41 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
+    # app:
+    #   build:
+    #     context: ../app
+    #     dockerfile: Dockerfile
+    #   container_name: myerp-app
+    #   depends_on:
+    #     postgres:
+    #       condition: service_healthy
+    #     redis:
+    #       condition: service_healthy
+    #     minio:
+    #       condition: service_healthy
+    #   environment:
+    #     # Spring datasource (use service name "postgres", not localhost)
+    #     SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erp}
+    #     SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
+    #     SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
-  app:
-    build:
-      context: ../app
-      dockerfile: Dockerfile
-    container_name: myerp-app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-    environment:
-      # Spring datasource (use service name "postgres", not localhost)
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-erp}
-      SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-postgres}
-      SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    #     # Redis (service name "redis")
+    #     SPRING_DATA_REDIS_HOST: redis
+    #     SPRING_DATA_REDIS_PORT: 6379
 
-      # Redis (service name "redis")
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
+    #     # MinIO (service name "minio")
+    #     MINIO_ENDPOINT: http://minio:9000
+    #     MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+    #     MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    #     MINIO_BUCKET: ${MINIO_BUCKET:-myerp}
 
-      # MinIO (service name "minio")
-      MINIO_ENDPOINT: http://minio:9000
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
-      MINIO_BUCKET: ${MINIO_BUCKET:-myerp}
+    #     # Optional: let Spring create schema while prototyping
+    #     SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
-      # Optional: let Spring create schema while prototyping
-      SPRING_JPA_HIBERNATE_DDL_AUTO: update
-
-    ports:
-      - "8080:8080"
-    networks:
-      - erp_network
+    # ports:
+    #   - "8080:8080"
+    # networks:
+    #   - erp_network
 
   auth-service:
     build:

@@ -7,6 +7,8 @@ create table if not exists task (
     status text not null check (status in ('OPEN','IN_PROGRESS','DONE','CANCELED')),
     priority text not null check (priority in ('LOW','MEDIUM','HIGH')),
     due_at timestamptz,
+    prerequisite_item_id uuid,
+    prerequisite_item_quantity numeric(18,6),
     assignee_user_id uuid,
     created_by_user_id uuid not null,
     created_at timestamptz not null default now(),

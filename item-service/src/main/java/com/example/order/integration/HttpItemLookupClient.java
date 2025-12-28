@@ -1,4 +1,4 @@
-package com.example.order.service;
+package com.example.order.integration;
 
 import java.util.List;
 import java.util.Objects;
@@ -10,6 +10,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
+
+import com.example.order.dto.ItemReference;
 
 @Component
 public class HttpItemLookupClient implements ItemLookupClient {
@@ -64,5 +66,3 @@ public class HttpItemLookupClient implements ItemLookupClient {
         return Objects.requireNonNullElse(ref.sku(), "unknown");
     }
 }
-
-

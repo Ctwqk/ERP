@@ -4,6 +4,7 @@ import com.example.order.dto.CreateOrderRequest;
 import com.example.order.dto.OrderDto;
 import com.example.order.dto.UpdateOrderStatusRequest;
 import java.util.UUID;
+import java.io.InputStream;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
@@ -15,6 +16,7 @@ public interface OrderService {
     Page<OrderDto> listMyOrders(Pageable pageable);
 
     OrderDto updateStatus(UUID id, UpdateOrderStatusRequest request);
+
+    public OrderDto createOrderFromXlsx(UUID documentId);
+
 }
-
-

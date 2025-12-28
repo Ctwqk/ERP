@@ -11,7 +11,9 @@ public record CreateTaskRequest(
         String description,
         @NotNull Priority priority,
         OffsetDateTime dueAt,
-        UUID assigneeUserId
+        UUID assigneeUserId,
+        UUID prerequisiteItemId,
+        Double prerequisiteItemQuantity
 ) {
 }
 

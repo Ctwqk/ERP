@@ -1,4 +1,4 @@
-package com.example.order.service;
+package com.example.order.dto;
 
 import java.util.UUID;
 

@@ -65,6 +65,8 @@ public class TaskServiceImpl implements TaskService {
         task.setDescription(request.description());
         task.setPriority(request.priority() != null ? request.priority() : Priority.MEDIUM);
         task.setDueAt(request.dueAt());
+        task.setPrerequisiteItemId(request.prerequisiteItemId());
+        task.setPrerequisiteItemQuantity(request.prerequisiteItemQuantity());
         task.setStatus(Status.OPEN);
         task.setCreatedByUserId(currentUserUuid());
         if (request.assigneeUserId() != null) {
@@ -107,6 +109,8 @@ public class TaskServiceImpl implements TaskService {
             assertUserExists(request.assigneeUserId());
             task.setAssigneeUserId(request.assigneeUserId());
         }
+        if (request.prerequisiteItemId() != null) task.setPrerequisiteItemId(request.prerequisiteItemId());
+        if (request.prerequisiteItemQuantity() != null) task.setPrerequisiteItemQuantity(request.prerequisiteItemQuantity());
         Task saved = taskRepository.save(task);
         return toDto(saved);
     }

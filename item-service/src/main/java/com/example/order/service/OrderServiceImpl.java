@@ -8,9 +8,12 @@ import com.example.order.domain.Order;
 import com.example.order.domain.Order.Status;
 import com.example.order.domain.OrderItem;
 import com.example.order.dto.CreateOrderRequest;
+import com.example.order.dto.ItemReference;
 import com.example.order.dto.OrderDto;
 import com.example.order.dto.OrderItemRequest;
 import com.example.order.dto.UpdateOrderStatusRequest;
+import com.example.order.integration.ItemLookupClient;
+import com.example.order.integration.DocumentClient;
 import com.example.order.repository.OrderRepository;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,6 +25,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
+import org.apache.poi.ss.usermodel.Workbook;
+import org.apache.poi.ss.usermodel.WorkbookFactory;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Row;
+import com.example.order.utils.ReadXlsx;
+import com.example.order.utils.ReadXlsx.ExcelOrderData;
+import java.io.InputStream;
 
 @Service
 @Transactional
@@ -31,15 +41,18 @@ public class OrderServiceImpl implements OrderService {
     private final DocumentLinkRepository documentLinkRepository;
     private final ItemLookupClient itemLookupClient;
     private final CurrentUserProvider currentUserProvider;
+    private final DocumentClient documentClient;
 
     public OrderServiceImpl(OrderRepository orderRepository,
             DocumentLinkRepository documentLinkRepository,
             ItemLookupClient itemLookupClient,
-            CurrentUserProvider currentUserProvider) {
+            CurrentUserProvider currentUserProvider,
+            DocumentClient documentClient) {
         this.orderRepository = orderRepository;
         this.documentLinkRepository = documentLinkRepository;
         this.itemLookupClient = itemLookupClient;
         this.currentUserProvider = currentUserProvider;
+        this.documentClient = documentClient;
     }
 
     @Override
@@ -176,6 +189,13 @@ public class OrderServiceImpl implements OrderService {
             case CANCELED, COMPLETED -> false;
         };
     }
+
+    public OrderDto createOrderFromXlsx(UUID documentId) {
+        try (InputStream in = documentClient.download(documentId)) {
+            ExcelOrderData data = ReadXlsx.readOrderWithMeta(in);
+            return createOrder(data.orderRequest());
+        } catch (Exception e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Failed to import order from xlsx", e);
+        }
+    }
 }
-
-

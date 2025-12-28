@@ -43,4 +43,3 @@ public class InventoryController {
         return inventoryService.listTransactions(stockId);
     }
 }
-

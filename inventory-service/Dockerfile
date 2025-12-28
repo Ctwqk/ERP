@@ -9,8 +9,12 @@ RUN mvn -B -q package -DskipTests
 # runtime stage
 FROM eclipse-temurin:17-jre
 WORKDIR /app
+RUN apt-get update && apt-get install -y --no-install-recommends postgresql-client && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/target/*.jar app.jar
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/app/app.jar"]
+ENTRYPOINT ["/entrypoint.sh"]
+CMD ["java","-jar","/app/app.jar"]
 
 

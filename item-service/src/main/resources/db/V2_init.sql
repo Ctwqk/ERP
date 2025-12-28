@@ -168,3 +168,38 @@ create index if not exists idx_item_document_item on item_document(item_id);
 create index if not exists idx_item_document_doc on item_document(document_id);
 
 
+
+
+
+create table if not exists erp_order (
+  id               uuid primary key default gen_random_uuid(),
+  order_code       text not null unique,
+  order_type       text not null check (order_type in ('PURCHASE','SALE')),
+  order_date       timestamptz not null default now(),
+  order_status     text not null check (order_status in ('PENDING','CONFIRMED','SHIPPED','DELIVERED','CANCELLED')),
+  order_note       text,
+  assignee_user_id uuid not null references app_user(id),
+  created_at       timestamptz not null default now(),
+  updated_at       timestamptz not null default now()
+);
+
+create index if not exists idx_order_assignee on erp_order(assignee_user_id);
+create index if not exists idx_order_status on erp_order(order_status);
+create index if not exists idx_order_date on erp_order(order_date);
+
+-- =====================
+-- ORDER LINE
+-- =====================
+create table if not exists order_line (
+  id              uuid primary key default gen_random_uuid(),
+  order_id        uuid not null references erp_order(id) on delete cascade,
+  product_item_id uuid not null references item(id),
+  qty             numeric(18,6) not null check (qty > 0),
+  uom_id          uuid not null references uom(id),
+  note            text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
+create index if not exists idx_order_line_order on order_line(order_id);
+create index if not exists idx_order_line_product_item on order_line(product_item_id);

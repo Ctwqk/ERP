@@ -33,6 +33,12 @@ public class Task {
     @Column(name = "due_at")
     private OffsetDateTime dueAt;
 
+    @Column(name = "prerequisite_item_id")
+    private UUID prerequisiteItemId;
+
+    @Column(name = "prerequisite_item_quantity")
+    private Double prerequisiteItemQuantity;
+
     @Column(name = "assignee_user_id")
     private UUID assigneeUserId;
 
@@ -80,6 +86,10 @@ public class Task {
     public void setPriority(Priority priority) { this.priority = priority; }
     public OffsetDateTime getDueAt() { return dueAt; }
     public void setDueAt(OffsetDateTime dueAt) { this.dueAt = dueAt; }
+    public UUID getPrerequisiteItemId() { return prerequisiteItemId; }
+    public void setPrerequisiteItemId(UUID prerequisiteItemId) { this.prerequisiteItemId = prerequisiteItemId; }
+    public Double getPrerequisiteItemQuantity() { return prerequisiteItemQuantity; }
+    public void setPrerequisiteItemQuantity(Double prerequisiteItemQuantity) { this.prerequisiteItemQuantity = prerequisiteItemQuantity; }
     public UUID getAssigneeUserId() { return assigneeUserId; }
     public void setAssigneeUserId(UUID assigneeUserId) { this.assigneeUserId = assigneeUserId; }
     public UUID getCreatedByUserId() { return createdByUserId; }

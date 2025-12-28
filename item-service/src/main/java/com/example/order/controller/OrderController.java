@@ -5,6 +5,7 @@ import com.example.order.dto.OrderDto;
 import com.example.order.dto.UpdateOrderStatusRequest;
 import com.example.order.service.OrderService;
 import jakarta.validation.Valid;
+import java.io.InputStream;
 import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -56,6 +57,10 @@ public class OrderController {
             @Valid @RequestBody UpdateOrderStatusRequest request) {
         return orderService.updateStatus(id, request);
     }
+
+    @PostMapping("/{documentId}/import")
+    @ResponseStatus(HttpStatus.CREATED)
+    public OrderDto createOrderFromXlsx(@PathVariable UUID documentId) {
+        return orderService.createOrderFromXlsx(documentId);
+    }
 }
-
-

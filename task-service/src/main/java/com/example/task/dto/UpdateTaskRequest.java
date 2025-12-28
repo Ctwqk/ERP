@@ -9,7 +9,9 @@ public record UpdateTaskRequest(
         String description,
         Priority priority,
         OffsetDateTime dueAt,
-        UUID assigneeUserId
+        UUID assigneeUserId,
+        UUID prerequisiteItemId,
+        Double prerequisiteItemQuantity
 ) {
 }
 

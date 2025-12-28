@@ -30,7 +30,7 @@ public class InventoryServiceImpl implements InventoryService {
     @Transactional(readOnly = true)
     public InventoryStockDto getStockByItemId(UUID itemId) {
         InventoryStock stock = stockRepo.findByItemId(itemId)
-                .orElseGet(() -> createEmptyStock(itemId));
+                .orElseGet(() -> handleEmptyStock(itemId));
         return new InventoryStockDto(stock);
     }
 
@@ -44,7 +44,7 @@ public class InventoryServiceImpl implements InventoryService {
         }
 
         InventoryStock stock = stockRepo.findByItemId(itemId)
-                .orElseGet(() -> createEmptyStock(itemId));
+                .orElseGet(() -> handleEmptyStock(itemId));
 
         double newQty = computeNewQuantity(stock.getQuantity(), type, quantity);
         stock.setQuantity(newQty);
@@ -69,11 +69,8 @@ public class InventoryServiceImpl implements InventoryService {
                 .toList();
     }
 
-    private InventoryStock createEmptyStock(UUID itemId) {
-        InventoryStock stock = new InventoryStock();
-        stock.setItemId(itemId);
-        stock.setQuantity(0d);
-        return stockRepo.save(stock);
+    private InventoryStock handleEmptyStock(UUID itemId) {
+        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stock not found for item " + itemId);
     }
 
     private double computeNewQuantity(double current, TransactionType type, double delta) {
