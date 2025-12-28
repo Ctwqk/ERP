@@ -15,6 +15,8 @@ import com.example.document.repository.DocumentLinkRepository;
 import com.example.document.domain.Document;
 import com.example.document.domain.Document.Status;
 import com.example.document.domain.DocumentLink;
+import com.example.document.service.DocumentEventPublisher;
+import com.example.order.events.DocumentUploadedEvent;
 import io.minio.StatObjectResponse;
 import io.minio.StatObjectArgs;
 import io.minio.MinioClient;
@@ -29,13 +31,16 @@ public class ItemImageService {
     private final MinioProps props;
     private final DocumentRepository docRepo;
     private final DocumentLinkRepository docLinkRepo;
+    private final DocumentEventPublisher eventPublisher;
 
     public ItemImageService(MinioClient minio, MinioProps props,
-            DocumentRepository docRepo, DocumentLinkRepository docLinkRepo) {
+            DocumentRepository docRepo, DocumentLinkRepository docLinkRepo,
+            DocumentEventPublisher eventPublisher) {
         this.minio = minio;
         this.props = props;
         this.docRepo = docRepo;
         this.docLinkRepo = docLinkRepo;
+        this.eventPublisher = eventPublisher;
     }
 
     @Transactional
@@ -144,6 +149,15 @@ public class ItemImageService {
         doc.setStatus(Status.APPROVED);
 
         docRepo.save(doc);
+
+        docLinkRepo.findAllByDocumentId(doc.getId()).forEach(link -> {
+            DocumentUploadedEvent evt = new DocumentUploadedEvent(
+                    doc.getId().toString(),
+                    link.getLinkType().name(),
+                    link.getLinkId().toString(),
+                    doc.getDocType() != null ? doc.getDocType().name() : null);
+            eventPublisher.publishUploaded(evt);
+        });
 
         return new CompleteUploadResponse(true);
     }
