@@ -105,16 +105,16 @@ where b.status = 'ACTIVE';
 create table if not exists document (
   id uuid primary key default gen_random_uuid(),
 
-  doc_type text not null check (doc_type in ('DRAWING','SPEC','WORK_INSTRUCTION','CERT')),
+  doc_type text not null check (doc_type in ('DRAWING','SPEC','WORK_INSTRUCTION','CERT','ORDER','ITEM')),
   title text not null,
   original_filename text,
   mime_type text,
   size_bytes bigint not null check (size_bytes >= 0),
   checksum_sha256 char(64) not null,
 
-  classification text not null check (classification in ('INTERNAL','CONFIDENTIAL','SECRET')),
+  classification text not null check (classification in ('PUBLIC','INTERNAL','CONFIDENTIAL')),
   revision text not null,
-  status text not null check (status in ('DRAFT','APPROVED','OBSOLETE','PENDING')),
+  status text not null check (status in ('DRAFT','APPROVED','ARCHIVED')),
 
   effective_from timestamptz,
   effective_to timestamptz,
@@ -123,7 +123,7 @@ create table if not exists document (
   object_key text not null,
   version_id text,
   etag text,
-  encryption text not null check (encryption in ('SSE_S3','SSE_KMS','CLIENT_SIDE')),
+  encryption text not null check (encryption in ('NONE','SSE_S3','SSE_KMS')),
   kms_key_id text,
 
   created_by_user_id uuid,
@@ -171,35 +171,32 @@ create index if not exists idx_item_document_doc on item_document(document_id);
 
 
 
-create table if not exists erp_order (
-  id               uuid primary key default gen_random_uuid(),
-  order_code       text not null unique,
-  order_type       text not null check (order_type in ('PURCHASE','SALE')),
-  order_date       timestamptz not null default now(),
-  order_status     text not null check (order_status in ('PENDING','CONFIRMED','SHIPPED','DELIVERED','CANCELLED')),
-  order_note       text,
-  assignee_user_id uuid not null references app_user(id),
-  created_at       timestamptz not null default now(),
-  updated_at       timestamptz not null default now()
+-- =====================
+-- ORDER
+-- =====================
+create table if not exists orders (
+  id                 uuid primary key default gen_random_uuid(),
+  user_id            text not null,
+  status             text not null check (status in ('NEW','CONFIRMED','CANCELED','COMPLETED')),
+  total_amount_cents bigint not null check (total_amount_cents >= 0),
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now()
 );
 
-create index if not exists idx_order_assignee on erp_order(assignee_user_id);
-create index if not exists idx_order_status on erp_order(order_status);
-create index if not exists idx_order_date on erp_order(order_date);
+create index if not exists idx_orders_user_id on orders(user_id);
+create index if not exists idx_orders_status on orders(status);
 
 -- =====================
--- ORDER LINE
+-- ORDER ITEM
 -- =====================
-create table if not exists order_line (
-  id              uuid primary key default gen_random_uuid(),
-  order_id        uuid not null references erp_order(id) on delete cascade,
-  product_item_id uuid not null references item(id),
-  qty             numeric(18,6) not null check (qty > 0),
-  uom_id          uuid not null references uom(id),
-  note            text,
-  created_at      timestamptz not null default now(),
-  updated_at      timestamptz not null default now()
+create table if not exists order_item (
+  id                uuid primary key default gen_random_uuid(),
+  order_id          uuid not null references orders(id) on delete cascade,
+  item_id           uuid,
+  sku               text,
+  quantity          int not null check (quantity > 0),
+  unit_price_cents  bigint not null check (unit_price_cents >= 0),
+  line_amount_cents bigint not null check (line_amount_cents >= 0)
 );
 
-create index if not exists idx_order_line_order on order_line(order_id);
-create index if not exists idx_order_line_product_item on order_line(product_item_id);
+create index if not exists idx_order_item_order on order_item(order_id);

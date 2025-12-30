@@ -6,24 +6,43 @@ import com.example.document.domain.Document;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronizationAdapter;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
+import com.example.document.rabbitmq.DocumentEventPublisher;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
+
+import com.example.document.rabbitmq.DocumentUploadEvent;
 
 @Service
 @Transactional
 public class DocumentServiceImpl implements DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final DocumentEventPublisher documentEventPublisher;
 
-    public DocumentServiceImpl(DocumentRepository documentRepository) {
+    public DocumentServiceImpl(DocumentRepository documentRepository, DocumentEventPublisher documentEventPublisher) {
         this.documentRepository = documentRepository;
+        this.documentEventPublisher = documentEventPublisher;
     }
 
     @Override
     public DocumentDto createDocument(DocumentDto documentDto) {
         Document saved = documentRepository.save(toEntity(documentDto));
+        DocumentUploadEvent event = new DocumentUploadEvent(List.of(saved.getId()), saved.getDocType().name(), null,
+                null);
+        // TransactionSynchronizationManager.registerSynchronization(new
+        // TransactionSynchronization() {
+        // @Override
+        // public void afterCommit() {
+        // documentEventPublisher.publishUploaded(event);
+        // }
+        // });
+
         return new DocumentDto(saved);
     }
 
@@ -75,8 +94,12 @@ public class DocumentServiceImpl implements DocumentService {
     @Override
     @Transactional(readOnly = true)
     public List<DocumentDto> getDocumentsByItemId(UUID itemId) {
-        // 当前未通过 document_link 过滤，直接返回全部；可按 link_type=ITEM 过滤后扩展
         return documentRepository.findAll().stream().map(DocumentDto::new).collect(Collectors.toList());
+    }
+
+    @Override
+    public void DocumentEventPublish(DocumentUploadEvent documentUploadEvent) {
+
     }
 
     private Document toEntity(DocumentDto dto) {

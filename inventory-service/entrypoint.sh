@@ -13,3 +13,6 @@ psql -h "$PGHOST" -U "$PGUSER" -tc "SELECT 1 FROM pg_database WHERE datname='${D
 
 exec "$@"
 
+
+
+

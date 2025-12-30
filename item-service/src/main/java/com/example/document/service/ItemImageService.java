@@ -15,8 +15,6 @@ import com.example.document.repository.DocumentLinkRepository;
 import com.example.document.domain.Document;
 import com.example.document.domain.Document.Status;
 import com.example.document.domain.DocumentLink;
-import com.example.document.service.DocumentEventPublisher;
-import com.example.order.events.DocumentUploadedEvent;
 import io.minio.StatObjectResponse;
 import io.minio.StatObjectArgs;
 import io.minio.MinioClient;
@@ -24,6 +22,9 @@ import io.minio.GetPresignedObjectUrlArgs;
 import io.minio.http.Method;
 import java.time.OffsetDateTime;
 import java.util.UUID;
+import java.util.List;
+import com.example.document.rabbitmq.DocumentUploadEvent;
+import com.example.document.rabbitmq.DocumentEventPublisher;
 
 @Service
 public class ItemImageService {
@@ -31,32 +32,31 @@ public class ItemImageService {
     private final MinioProps props;
     private final DocumentRepository docRepo;
     private final DocumentLinkRepository docLinkRepo;
-    private final DocumentEventPublisher eventPublisher;
+    private final DocumentEventPublisher documentEventPublisher;
 
     public ItemImageService(MinioClient minio, MinioProps props,
             DocumentRepository docRepo, DocumentLinkRepository docLinkRepo,
-            DocumentEventPublisher eventPublisher) {
+            DocumentEventPublisher documentEventPublisher) {
         this.minio = minio;
         this.props = props;
         this.docRepo = docRepo;
         this.docLinkRepo = docLinkRepo;
-        this.eventPublisher = eventPublisher;
+        this.documentEventPublisher = documentEventPublisher;
     }
 
     @Transactional
     public InitUploadResponse init(UUID itemId, InitUploadRequest req) throws Exception {
-        // 1) 校验
-        if (req.contentType() == null || !req.contentType().startsWith("image/")) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image/* is allowed");
-        }
-        if (req.sizeBytes() == null || req.sizeBytes() <= 0 || req.sizeBytes() > 10 * 1024 * 1024) {
+        // if (req.contentType() == null || !req.contentType().startsWith("image/")) {
+        // throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image/* is
+        // allowed");
+        // }
+        if (req.sizeBytes() == null || req.sizeBytes() <= 0 || req.sizeBytes() > 100 * 1024 * 1024) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid size");
         }
 
         UUID docId = UUID.randomUUID();
-        String objectKey = "items/%s/images/%s".formatted(itemId, docId); // 先不加扩展名也行
+        String objectKey = "items/%s/images/%s".formatted(itemId, docId);
 
-        // 2) 先落库：PENDING
         Document doc = new Document();
         doc.setId(docId);
         doc.setBucket(props.bucket());
@@ -67,9 +67,8 @@ public class ItemImageService {
         doc.setStatus(Status.DRAFT);
         docRepo.save(doc);
 
-        // 3) 建立关联（也可以放到 complete 再建）
         DocumentLink link = new DocumentLink();
-        link.setLinkId(itemId); // link_id 指向业务实体（ITEM/ORDER）
+        link.setLinkId(itemId);
         link.setDocumentId(docId);
         DocumentLink.LinkType linkType = resolveLinkType(req.linkType());
         DocumentLink.Purpose purpose = resolvePurpose(req.purpose());
@@ -77,7 +76,6 @@ public class ItemImageService {
         link.setPurpose(purpose);
         docLinkRepo.save(link);
 
-        // 4) 生成 PUT 预签名
         int expiresSeconds = 10 * 60;
         String uploadUrl = minio.getPresignedObjectUrl(
                 GetPresignedObjectUrlArgs.builder()
@@ -87,7 +85,6 @@ public class ItemImageService {
                         .expiry(expiresSeconds)
                         .build());
 
-        // 5) 如果你的 endpoint 是容器内地址，需要把 URL host 替换成 publicEndpoint
         uploadUrl = rewriteToPublicEndpoint(uploadUrl, props.publicEndpoint());
 
         return new InitUploadResponse(
@@ -149,16 +146,9 @@ public class ItemImageService {
         doc.setStatus(Status.APPROVED);
 
         docRepo.save(doc);
-
-        docLinkRepo.findAllByDocumentId(doc.getId()).forEach(link -> {
-            DocumentUploadedEvent evt = new DocumentUploadedEvent(
-                    doc.getId().toString(),
-                    link.getLinkType().name(),
-                    link.getLinkId().toString(),
-                    doc.getDocType() != null ? doc.getDocType().name() : null);
-            eventPublisher.publishUploaded(evt);
-        });
-
+        DocumentUploadEvent event = new DocumentUploadEvent(List.of(doc.getId()), doc.getDocType().name(), linkId,
+                null);
+        documentEventPublisher.publishUploaded(event);
         return new CompleteUploadResponse(true);
     }
 

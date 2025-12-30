@@ -97,7 +97,7 @@ public class Document {
     }
 
     public enum DocType {
-        GENERIC, IMAGE, PDF
+        DRAWING, SPEC, WORK_INSTRUCTION, CERT, ORDER, ITEM
     }
 
     public enum Classification {
@@ -280,4 +280,3 @@ public class Document {
         this.updatedAt = updatedAt;
     }
 }
-
