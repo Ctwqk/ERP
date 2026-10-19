@@ -1,0 +1,4 @@
+com.example.common.security.ErpSecurityAutoConfiguration
+com.example.common.openapi.ErpOpenApiConfiguration
+com.example.common.messaging.ErpMessagingConfiguration
+com.example.common.web.ErpWebAutoConfiguration
