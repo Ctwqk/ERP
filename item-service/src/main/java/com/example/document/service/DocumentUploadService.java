@@ -99,6 +99,9 @@ public class DocumentUploadService {
         Document doc = docRepo.findById(req.documentId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
 
+        if (!userId.equals(doc.getCreatedByUserId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the uploader can complete this document");
+        }
         if (!docLinkRepo.existsByDocumentIdAndLinkId(doc.getId(), linkId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Document is not linked to " + linkId);
         }

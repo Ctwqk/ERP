@@ -128,6 +128,7 @@ class DocumentUploadServiceTest {
         Document d = new Document();
         d.setId(UUID.randomUUID());
         d.setDocType(DocType.ORDER);
+        d.setCreatedByUserId(USER);
         d.setStatus(Status.DRAFT);
         d.setBucket("erp-assets");
         d.setObjectKey("orders/x/y");
@@ -201,4 +202,14 @@ class DocumentUploadServiceTest {
         assertThatThrownBy(() -> service.complete(LINK, new CompleteUploadRequest(missing), USER, "u"))
                 .satisfies(t -> status(t, HttpStatus.NOT_FOUND));
     }
+    @Test
+    void anotherUserCannotCompleteUploadOrPublishItsEvent() {
+        Document doc = draft(500);
+        assertThatThrownBy(() -> service.complete(LINK, new CompleteUploadRequest(doc.getId()),
+                UUID.randomUUID(), "another-user"))
+                .satisfies(t -> status(t, HttpStatus.FORBIDDEN));
+        verify(publisher, never()).publishUploaded(any());
+        verify(storage, never()).stat(any(), any());
+    }
+
 }

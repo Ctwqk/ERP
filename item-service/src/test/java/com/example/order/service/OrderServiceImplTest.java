@@ -45,7 +45,7 @@ import org.springframework.web.server.ResponseStatusException;
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplTest {
 
-    private static final String ME = "user-1";
+    private static final String ME = UUID.randomUUID().toString();
 
     @Mock OrderRepository orders;
     @Mock DocumentLinkRepository links;
@@ -250,6 +250,7 @@ class OrderServiceImplTest {
         Document d = new Document();
         d.setId(UUID.randomUUID());
         d.setDocType(DocType.ORDER);
+        d.setCreatedByUserId(UUID.fromString(ME));
         d.setOriginalFilename(filename);
         d.setStatus(status);
         d.setBucket("b");
@@ -268,15 +269,15 @@ class OrderServiceImplTest {
         when(orders.findById(any(UUID.class))).thenAnswer(inv -> {
             Order o = new Order();
             o.setId(inv.getArgument(0));
-            o.setUserId("importer");
+            o.setUserId(ME);
             o.setStatus(Status.NEW);
             o.setTotalAmountCents(400L);
             return Optional.of(o);
         });
 
-        OrderDto dto = service.importOrderFromDocument(doc.getId(), "importer");
+        OrderDto dto = service.importOrderFromDocument(doc.getId(), ME);
 
-        assertThat(dto.userId()).isEqualTo("importer");
+        assertThat(dto.userId()).isEqualTo(ME);
         org.mockito.ArgumentCaptor<DocumentLink> link = org.mockito.ArgumentCaptor.forClass(DocumentLink.class);
         verify(links).save(link.capture());
         assertThat(link.getValue().getDocumentId()).isEqualTo(doc.getId());
@@ -289,7 +290,7 @@ class OrderServiceImplTest {
         Document doc = orderDocument("po.xlsx", Document.Status.APPROVED);
         Order existing = new Order();
         existing.setId(UUID.randomUUID());
-        existing.setUserId("importer");
+        existing.setUserId(ME);
         existing.setStatus(Status.NEW);
         existing.setTotalAmountCents(1L);
         DocumentLink link = new DocumentLink();
@@ -299,7 +300,7 @@ class OrderServiceImplTest {
         when(links.findAllByDocumentId(doc.getId())).thenReturn(List.of(link));
         when(orders.findById(existing.getId())).thenReturn(Optional.of(existing));
 
-        OrderDto dto = service.importOrderFromDocument(doc.getId(), "importer");
+        OrderDto dto = service.importOrderFromDocument(doc.getId(), ME);
 
         assertThat(dto.id()).isEqualTo(existing.getId());
         verifyNoInteractions(storage);
@@ -309,21 +310,21 @@ class OrderServiceImplTest {
     @Test
     void importRejectsWrongDocuments() {
         Document pdf = orderDocument("po.pdf", Document.Status.APPROVED);
-        assertThatThrownBy(() -> service.importOrderFromDocument(pdf.getId(), "u"))
+        assertThatThrownBy(() -> service.importOrderFromDocument(pdf.getId(), ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.BAD_REQUEST));
 
         Document draft = orderDocument("po.xlsx", Document.Status.DRAFT);
-        assertThatThrownBy(() -> service.importOrderFromDocument(draft.getId(), "u"))
+        assertThatThrownBy(() -> service.importOrderFromDocument(draft.getId(), ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.CONFLICT));
 
         Document item = orderDocument("po.xlsx", Document.Status.APPROVED);
         item.setDocType(DocType.ITEM);
-        assertThatThrownBy(() -> service.importOrderFromDocument(item.getId(), "u"))
+        assertThatThrownBy(() -> service.importOrderFromDocument(item.getId(), ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.BAD_REQUEST));
 
         UUID missing = UUID.randomUUID();
         when(documents.findById(missing)).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.importOrderFromDocument(missing, "u"))
+        assertThatThrownBy(() -> service.importOrderFromDocument(missing, ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.NOT_FOUND));
     }
 
@@ -333,7 +334,16 @@ class OrderServiceImplTest {
         when(links.findAllByDocumentId(doc.getId())).thenReturn(List.of());
         when(storage.open("b", "k")).thenReturn(new ByteArrayInputStream("not a workbook".getBytes()));
 
-        assertThatThrownBy(() -> service.importOrderFromDocument(doc.getId(), "u"))
+        assertThatThrownBy(() -> service.importOrderFromDocument(doc.getId(), ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.BAD_REQUEST));
     }
+    @Test
+    void anotherUserCannotImportOrReadAnOrderThroughItsSourceDocument() {
+        Document doc = orderDocument("po.xlsx", Document.Status.APPROVED);
+        assertThatThrownBy(() -> service.importOrderFromDocument(doc.getId(), UUID.randomUUID().toString()))
+                .satisfies(t -> assertStatus(t, HttpStatus.FORBIDDEN));
+        verifyNoInteractions(storage);
+        verify(orders, never()).save(any());
+    }
+
 }

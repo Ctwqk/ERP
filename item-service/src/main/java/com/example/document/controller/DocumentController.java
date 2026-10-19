@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -41,6 +42,7 @@ public class DocumentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(summary = "Register document metadata for an object that already exists in storage")
     public DocumentDto create(@RequestBody DocumentDto dto) {
@@ -53,6 +55,7 @@ public class DocumentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Patch a document; null fields are left unchanged")
     public DocumentDto update(@PathVariable UUID id, @RequestBody DocumentDto dto) {
         return documentService.updateDocument(new DocumentDto(id, dto.docType(), dto.title(), dto.originalFilename(),
@@ -63,6 +66,7 @@ public class DocumentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable UUID id) {
         documentService.deleteDocument(id);

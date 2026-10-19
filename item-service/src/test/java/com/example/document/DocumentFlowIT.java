@@ -35,6 +35,7 @@ import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
 
 /**
  * The whole document pipeline against real PostgreSQL, MinIO and RabbitMQ: presigned upload, completion, the
@@ -101,6 +102,15 @@ class DocumentFlowIT {
                         .contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"%s\"}".formatted(documentId)))
                 .andExpect(status().isConflict());
 
+        // An unrelated account cannot hijack completion or rewrite the document owner.
+        UUID other = UUID.randomUUID();
+        mvc.perform(post("/api/documents/{id}/images:complete", importBatch).with(as(other))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"documentId\":\"%s\"}".formatted(documentId)))
+                .andExpect(status().isForbidden());
+        mvc.perform(MockMvcRequestBuilders.put("/api/documents/{id}", documentId).with(as(other))
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"createdByUserId\":\"%s\"}".formatted(other)))
+                .andExpect(status().isForbidden());
+
         assertThat(put(uploadUrl, xlsx)).isEqualTo(200);   // straight to MinIO with the presigned URL
 
         mvc.perform(post("/api/documents/{id}/images:complete", importBatch).with(as(uploader))
@@ -137,6 +147,8 @@ class DocumentFlowIT {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").value(orderId));
         mvc.perform(get("/api/orders").with(as(uploader))).andExpect(jsonPath("$.totalElements").value(1));
+        mvc.perform(post("/api/orders/{docId}/import", documentId).with(as(other)))
+                .andExpect(status().isForbidden());
     }
 
     @Test

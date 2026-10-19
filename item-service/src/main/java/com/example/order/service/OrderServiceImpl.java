@@ -255,6 +255,9 @@ public class OrderServiceImpl implements OrderService {
     public OrderDto importOrderFromDocument(UUID documentId, String userId) {
         Document doc = documentRepository.findById(documentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
+        if (!userId.equals(String.valueOf(doc.getCreatedByUserId()))) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the uploader can import this document");
+        }
         if (doc.getDocType() != DocType.ORDER) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document is not an ORDER document");
         }
@@ -271,6 +274,9 @@ public class OrderServiceImpl implements OrderService {
                 .flatMap(Optional::stream)
                 .findFirst();
         if (existing.isPresent()) {
+            if (!userId.equals(existing.get().getUserId())) {
+                throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your order");
+            }
             log.info("Document {} was already imported as order {}", documentId, existing.get().getId());
             return new OrderDto(existing.get(), loadDocumentIds(existing.get().getId()));
         }
