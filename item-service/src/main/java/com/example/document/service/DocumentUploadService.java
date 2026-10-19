@@ -1,155 +1,146 @@
 package com.example.document.service;
 
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.http.HttpStatus;
-import org.springframework.web.server.ResponseStatusException;
-
-import com.example.document.dto.InitUploadRequest;
-import com.example.document.dto.InitUploadResponse;
-import com.example.document.dto.CompleteUploadRequest;
-import com.example.document.dto.CompleteUploadResponse;
-import com.example.document.dto.MinioProps;
-import com.example.document.repository.DocumentRepository;
-import com.example.document.repository.DocumentLinkRepository;
+import com.example.common.events.DocumentUploadEvent;
 import com.example.document.domain.Document;
+import com.example.document.domain.Document.Classification;
+import com.example.document.domain.Document.DocType;
+import com.example.document.domain.Document.Encryption;
 import com.example.document.domain.Document.Status;
 import com.example.document.domain.DocumentLink;
-import io.minio.StatObjectResponse;
-import io.minio.StatObjectArgs;
-import io.minio.MinioClient;
-import io.minio.GetPresignedObjectUrlArgs;
-import io.minio.http.Method;
-import java.time.OffsetDateTime;
-import java.util.UUID;
-import java.util.List;
-import com.example.document.rabbitmq.DocumentUploadEvent;
+import com.example.document.domain.DocumentLink.LinkType;
+import com.example.document.domain.DocumentLink.Purpose;
+import com.example.document.dto.CompleteUploadRequest;
+import com.example.document.dto.CompleteUploadResponse;
+import com.example.document.dto.InitUploadRequest;
+import com.example.document.dto.InitUploadResponse;
 import com.example.document.rabbitmq.DocumentEventPublisher;
+import com.example.document.repository.DocumentLinkRepository;
+import com.example.document.repository.DocumentRepository;
+import com.example.item.repository.ItemRepository;
+import io.minio.StatObjectResponse;
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
+/**
+ * Two-step direct-to-storage upload: {@link #init} registers a DRAFT document and hands out a presigned PUT URL, the
+ * client uploads the bytes straight to MinIO, then {@link #complete} verifies the object, approves the document and
+ * publishes a {@link DocumentUploadEvent}.
+ */
 @Service
-public class ItemImageService {
-    private final MinioClient minio;
-    private final MinioProps props;
+public class DocumentUploadService {
+
+    static final long MAX_SIZE_BYTES = 100L * 1024 * 1024;
+    static final int UPLOAD_URL_SECONDS = 10 * 60;
+
+    private final DocumentStorage storage;
     private final DocumentRepository docRepo;
     private final DocumentLinkRepository docLinkRepo;
+    private final ItemRepository itemRepo;
     private final DocumentEventPublisher documentEventPublisher;
 
-    public ItemImageService(MinioClient minio, MinioProps props,
-            DocumentRepository docRepo, DocumentLinkRepository docLinkRepo,
+    public DocumentUploadService(DocumentStorage storage, DocumentRepository docRepo,
+            DocumentLinkRepository docLinkRepo, ItemRepository itemRepo,
             DocumentEventPublisher documentEventPublisher) {
-        this.minio = minio;
-        this.props = props;
+        this.storage = storage;
         this.docRepo = docRepo;
         this.docLinkRepo = docLinkRepo;
+        this.itemRepo = itemRepo;
         this.documentEventPublisher = documentEventPublisher;
     }
 
     @Transactional
-    public InitUploadResponse init(UUID itemId, InitUploadRequest req) throws Exception {
-        // if (req.contentType() == null || !req.contentType().startsWith("image/")) {
-        // throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Only image/* is
-        // allowed");
-        // }
-        if (req.sizeBytes() == null || req.sizeBytes() <= 0 || req.sizeBytes() > 100 * 1024 * 1024) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid size");
+    public InitUploadResponse init(UUID linkId, InitUploadRequest req, UUID userId) {
+        if (req.sizeBytes() == null || req.sizeBytes() <= 0 || req.sizeBytes() > MAX_SIZE_BYTES) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "sizeBytes must be between 1 and " + MAX_SIZE_BYTES);
         }
+        LinkType linkType = resolveLinkType(req.linkType());
+        if (linkType == LinkType.ITEM && !itemRepo.existsById(linkId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
+        }
+        storage.ensureBucket();
 
         UUID docId = UUID.randomUUID();
-        String objectKey = "items/%s/images/%s".formatted(itemId, docId);
-
         Document doc = new Document();
-        doc.setId(docId);
-        doc.setBucket(props.bucket());
-        doc.setObjectKey(objectKey);
+        doc.setDocType(req.docType() != null ? req.docType()
+                : linkType == LinkType.ORDER ? DocType.ORDER : DocType.ITEM);
+        doc.setTitle(req.filename());
+        doc.setOriginalFilename(req.filename());
         doc.setMimeType(req.contentType());
         doc.setSizeBytes(req.sizeBytes());
-        doc.setOriginalFilename(req.filename());
+        doc.setClassification(Classification.INTERNAL);
+        doc.setRevision("A");
         doc.setStatus(Status.DRAFT);
-        docRepo.save(doc);
+        doc.setBucket(storage.bucket());
+        doc.setObjectKey("%ss/%s/%s".formatted(linkType.name().toLowerCase(), linkId, docId));
+        doc.setEncryption(Encryption.NONE);
+        doc.setCreatedByUserId(userId);
+        doc = docRepo.save(doc);
 
         DocumentLink link = new DocumentLink();
-        link.setLinkId(itemId);
-        link.setDocumentId(docId);
-        DocumentLink.LinkType linkType = resolveLinkType(req.linkType());
-        DocumentLink.Purpose purpose = resolvePurpose(req.purpose());
+        link.setLinkId(linkId);
+        link.setDocumentId(doc.getId());
         link.setLinkType(linkType);
-        link.setPurpose(purpose);
+        link.setPurpose(resolvePurpose(req.purpose()));
         docLinkRepo.save(link);
 
-        int expiresSeconds = 10 * 60;
-        String uploadUrl = minio.getPresignedObjectUrl(
-                GetPresignedObjectUrlArgs.builder()
-                        .method(Method.PUT)
-                        .bucket(props.bucket())
-                        .object(objectKey)
-                        .expiry(expiresSeconds)
-                        .build());
-
-        uploadUrl = rewriteToPublicEndpoint(uploadUrl, props.publicEndpoint());
-
-        return new InitUploadResponse(
-                docId,
-                props.bucket(),
-                objectKey,
-                uploadUrl,
-                OffsetDateTime.now().plusSeconds(expiresSeconds));
-    }
-
-    private static DocumentLink.LinkType resolveLinkType(String linkType) {
-        if (linkType == null || linkType.isBlank()) {
-            return DocumentLink.LinkType.ITEM;
-        }
-        try {
-            return DocumentLink.LinkType.valueOf(linkType.toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            return DocumentLink.LinkType.ITEM;
-        }
-    }
-
-    private static DocumentLink.Purpose resolvePurpose(String purpose) {
-        if (purpose == null || purpose.isBlank()) {
-            return DocumentLink.Purpose.PRIMARY;
-        }
-        try {
-            return DocumentLink.Purpose.valueOf(purpose.toUpperCase());
-        } catch (IllegalArgumentException ex) {
-            return DocumentLink.Purpose.PRIMARY;
-        }
-    }
-
-    private static String rewriteToPublicEndpoint(String url, String publicEndpoint) {
-        if (publicEndpoint == null || publicEndpoint.isBlank())
-            return url;
-
-        return url.replaceFirst("^https?://[^/]+", publicEndpoint);
+        String uploadUrl = storage.presignedPutUrl(doc.getBucket(), doc.getObjectKey(), UPLOAD_URL_SECONDS);
+        return new InitUploadResponse(doc.getId(), doc.getBucket(), doc.getObjectKey(), uploadUrl,
+                OffsetDateTime.now().plusSeconds(UPLOAD_URL_SECONDS));
     }
 
     @Transactional
-    public CompleteUploadResponse complete(UUID linkId, CompleteUploadRequest req) throws Exception {
+    public CompleteUploadResponse complete(UUID linkId, CompleteUploadRequest req, UUID userId, String username) {
         Document doc = docRepo.findById(req.documentId())
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
 
         if (!docLinkRepo.existsByDocumentIdAndLinkId(doc.getId(), linkId)) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your document");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Document is not linked to " + linkId);
+        }
+        if (doc.getStatus() != Status.DRAFT) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Upload already completed");
         }
 
-        StatObjectResponse stat = minio.statObject(
-                StatObjectArgs.builder()
-                        .bucket(doc.getBucket())
-                        .object(doc.getObjectKey())
-                        .build());
-
+        StatObjectResponse stat = storage.stat(doc.getBucket(), doc.getObjectKey())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "No object found in storage - upload the file to the presigned URL first"));
         if (doc.getSizeBytes() != null && stat.size() != doc.getSizeBytes()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Size mismatch");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Size mismatch: declared %d bytes, stored %d bytes".formatted(doc.getSizeBytes(), stat.size()));
         }
 
         doc.setStatus(Status.APPROVED);
-
+        doc.setEtag(stat.etag());
         docRepo.save(doc);
-        DocumentUploadEvent event = new DocumentUploadEvent(List.of(doc.getId()), doc.getDocType().name(), linkId,
-                null);
-        documentEventPublisher.publishUploaded(event);
+        documentEventPublisher.publishUploaded(new DocumentUploadEvent(List.of(doc.getId()), doc.getDocType().name(),
+                linkId, null, userId, username));
         return new CompleteUploadResponse(true);
     }
 
+    private static LinkType resolveLinkType(String linkType) {
+        if (linkType == null || linkType.isBlank()) {
+            return LinkType.ITEM;
+        }
+        try {
+            return LinkType.valueOf(linkType.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "linkType must be ITEM or ORDER");
+        }
+    }
+
+    private static Purpose resolvePurpose(String purpose) {
+        if (purpose == null || purpose.isBlank()) {
+            return Purpose.PRIMARY;
+        }
+        try {
+            return Purpose.valueOf(purpose.toUpperCase());
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "purpose must be PRIMARY or REFERENCE");
+        }
+    }
 }

@@ -10,8 +10,6 @@ import java.util.UUID;
 @Table(name = "bom", indexes = {
         @Index(name = "idx_bom_product", columnList = "product_item_id"),
         @Index(name = "idx_bom_status", columnList = "status")
-}, uniqueConstraints = {
-        @UniqueConstraint(name = "ux_bom_active_per_product_rev", columnNames = { "product_item_id", "revision" })
 })
 public class Bom {
 

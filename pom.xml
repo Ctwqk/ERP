@@ -20,10 +20,11 @@
 
   <modules>
     <module>erp-common</module>
-    <module>inventory-service</module>
-    <module>notification-service</module>
-    <module>task-service</module>
     <module>user-service</module>
+    <module>item-service</module>
+    <module>inventory-service</module>
+    <module>task-service</module>
+    <module>notification-service</module>
   </modules>
 
   <properties>

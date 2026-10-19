@@ -1,11 +1,12 @@
 package com.example.order.service;
 
+import com.example.common.security.JwtUsers;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @Component
 public class SecurityContextCurrentUserProvider implements CurrentUserProvider {
@@ -16,22 +17,14 @@ public class SecurityContextCurrentUserProvider implements CurrentUserProvider {
         if (authentication == null || !authentication.isAuthenticated()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Unauthenticated");
         }
-
-        Object principal = authentication.getPrincipal();
-        if (principal instanceof Jwt jwt) {
-            String userId = jwt.getClaimAsString("sub");
-            if (userId == null || userId.isBlank()) {
-                throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user id");
-            }
-            return userId;
+        UUID uid = JwtUsers.userId(authentication);
+        if (uid != null) {
+            return uid.toString();
         }
-
-        String name = authentication.getName();
+        String name = JwtUsers.subject(authentication);
         if (name == null || name.isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user id");
         }
         return name;
     }
 }
-
-

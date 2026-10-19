@@ -14,23 +14,16 @@ import java.util.UUID;
 public interface ItemRepository extends JpaRepository<Item, UUID> {
     Optional<Item> findBySkuCode(String skuCode);
 
-    @Query(value = """
-            select * from item
-             where (:keyword is null or lower(name) like lower(concat('%', :keyword, '%'))
-                    or lower(sku_code) like lower(concat('%', :keyword, '%')))
-               and (:itemType is null or item_type = :itemType)
-               and (:active is null or active = :active)
-            """,
-            countQuery = """
-            select count(*) from item
-             where (:keyword is null or lower(name) like lower(concat('%', :keyword, '%'))
-                    or lower(sku_code) like lower(concat('%', :keyword, '%')))
-               and (:itemType is null or item_type = :itemType)
-               and (:active is null or active = :active)
-            """,
-            nativeQuery = true)
+    /** Optional filters; sorting by entity property names (e.g. {@code skuCode}) is supported through Pageable. */
+    @Query("""
+            select i from Item i
+             where (:keyword is null or lower(i.name) like lower(concat('%', cast(:keyword as string), '%'))
+                    or lower(i.skuCode) like lower(concat('%', cast(:keyword as string), '%')))
+               and (:itemType is null or i.itemType = :itemType)
+               and (:active is null or i.active = :active)
+            """)
     Page<Item> search(@Param("keyword") String keyword,
-                      @Param("itemType") String itemType,
+                      @Param("itemType") Item.ItemType itemType,
                       @Param("active") Boolean active,
                       Pageable pageable);
 

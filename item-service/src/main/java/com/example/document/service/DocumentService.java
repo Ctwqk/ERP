@@ -1,10 +1,8 @@
 package com.example.document.service;
 
-import java.util.UUID;
-
 import com.example.document.dto.DocumentDto;
-
 import java.util.List;
+import java.util.UUID;
 
 public interface DocumentService {
     DocumentDto createDocument(DocumentDto documentDto);
@@ -15,5 +13,9 @@ public interface DocumentService {
 
     void deleteDocument(UUID id);
 
+    /** Documents attached to the given item, or all documents when {@code itemId} is null. */
     List<DocumentDto> getDocumentsByItemId(UUID itemId);
+
+    /** Short-lived presigned download URL; only for {@code APPROVED} (fully uploaded) documents. */
+    String downloadUrl(UUID documentId);
 }

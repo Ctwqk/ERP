@@ -1,62 +1,58 @@
 package com.example.document.service;
 
-import com.example.document.dto.DocumentDto;
-import com.example.document.repository.DocumentRepository;
 import com.example.document.domain.Document;
-
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronizationAdapter;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-import com.example.document.rabbitmq.DocumentEventPublisher;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
-
+import com.example.document.domain.Document.Classification;
+import com.example.document.domain.Document.Encryption;
+import com.example.document.domain.Document.Status;
+import com.example.document.domain.DocumentLink;
+import com.example.document.domain.DocumentLink.LinkType;
+import com.example.document.dto.DocumentDto;
+import com.example.document.repository.DocumentLinkRepository;
+import com.example.document.repository.DocumentRepository;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
-
-import com.example.document.rabbitmq.DocumentUploadEvent;
+import org.springframework.http.HttpStatus;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
 public class DocumentServiceImpl implements DocumentService {
 
-    private final DocumentRepository documentRepository;
-    private final DocumentEventPublisher documentEventPublisher;
+    static final int DOWNLOAD_URL_SECONDS = 5 * 60;
 
-    public DocumentServiceImpl(DocumentRepository documentRepository, DocumentEventPublisher documentEventPublisher) {
+    private final DocumentRepository documentRepository;
+    private final DocumentLinkRepository linkRepository;
+    private final DocumentStorage storage;
+
+    public DocumentServiceImpl(DocumentRepository documentRepository, DocumentLinkRepository linkRepository,
+            DocumentStorage storage) {
         this.documentRepository = documentRepository;
-        this.documentEventPublisher = documentEventPublisher;
+        this.linkRepository = linkRepository;
+        this.storage = storage;
     }
 
     @Override
-    public DocumentDto createDocument(DocumentDto documentDto) {
-        Document saved = documentRepository.save(toEntity(documentDto));
-        DocumentUploadEvent event = new DocumentUploadEvent(List.of(saved.getId()), saved.getDocType().name(), null,
-                null);
-        // TransactionSynchronizationManager.registerSynchronization(new
-        // TransactionSynchronization() {
-        // @Override
-        // public void afterCommit() {
-        // documentEventPublisher.publishUploaded(event);
-        // }
-        // });
-
-        return new DocumentDto(saved);
+    public DocumentDto createDocument(DocumentDto dto) {
+        require(dto.docType() != null, "docType is required");
+        require(dto.title() != null && !dto.title().isBlank(), "title is required");
+        require(dto.sizeBytes() != null && dto.sizeBytes() >= 0, "sizeBytes is required");
+        require(dto.bucket() != null && !dto.bucket().isBlank(), "bucket is required");
+        require(dto.objectKey() != null && !dto.objectKey().isBlank(), "objectKey is required");
+        return new DocumentDto(documentRepository.save(toEntity(dto)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public DocumentDto getDocumentById(UUID id) {
-        Document doc = documentRepository.findById(id).orElseThrow(() -> new RuntimeException("Document not found"));
-        return new DocumentDto(doc);
+        return new DocumentDto(find(id));
     }
 
     @Override
     public DocumentDto updateDocument(DocumentDto documentDto) {
         if (documentDto.id() == null) {
-            throw new RuntimeException("Document ID is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Document id is required");
         }
         int updated = documentRepository.patchDocument(
                 documentDto.id(),
@@ -79,69 +75,74 @@ public class DocumentServiceImpl implements DocumentService {
                 documentDto.kmsKeyId(),
                 documentDto.createdByUserId());
         if (updated == 0) {
-            throw new RuntimeException("Document not found");
+            throw notFound();
         }
-        Document reloaded = documentRepository.findById(documentDto.id())
-                .orElseThrow(() -> new RuntimeException("Document not found"));
-        return new DocumentDto(reloaded);
+        return new DocumentDto(find(documentDto.id()));
     }
 
     @Override
     public void deleteDocument(UUID id) {
-        documentRepository.deleteById(id);
+        Document doc = find(id);
+        documentRepository.delete(doc);
+        storage.remove(doc.getBucket(), doc.getObjectKey());
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<DocumentDto> getDocumentsByItemId(UUID itemId) {
-        return documentRepository.findAll().stream().map(DocumentDto::new).collect(Collectors.toList());
+        if (itemId == null) {
+            return documentRepository.findAll().stream().map(DocumentDto::new).toList();
+        }
+        List<UUID> documentIds = linkRepository.findAllByLinkIdAndLinkType(itemId, LinkType.ITEM).stream()
+                .map(DocumentLink::getDocumentId)
+                .toList();
+        return documentRepository.findAllById(documentIds).stream().map(DocumentDto::new).toList();
     }
 
     @Override
-    public void DocumentEventPublish(DocumentUploadEvent documentUploadEvent) {
+    @Transactional(readOnly = true)
+    public String downloadUrl(UUID documentId) {
+        Document doc = find(documentId);
+        if (doc.getStatus() != Status.APPROVED) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Document is not available yet (upload incomplete)");
+        }
+        return storage.presignedGetUrl(doc.getBucket(), doc.getObjectKey(), DOWNLOAD_URL_SECONDS);
+    }
 
+    private Document find(UUID id) {
+        return documentRepository.findById(id).orElseThrow(DocumentServiceImpl::notFound);
+    }
+
+    private static ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found");
+    }
+
+    private static void require(boolean condition, String message) {
+        if (!condition) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, message);
+        }
     }
 
     private Document toEntity(DocumentDto dto) {
         Document doc = new Document();
-        if (dto.id() != null)
-            doc.setId(dto.id());
-        if (dto.docType() != null)
-            doc.setDocType(dto.docType());
-        if (dto.title() != null)
-            doc.setTitle(dto.title());
-        if (dto.originalFilename() != null)
-            doc.setOriginalFilename(dto.originalFilename());
-        if (dto.mimeType() != null)
-            doc.setMimeType(dto.mimeType());
-        if (dto.sizeBytes() != null)
-            doc.setSizeBytes(dto.sizeBytes());
-        if (dto.checksumSha256() != null)
-            doc.setChecksumSha256(dto.checksumSha256());
-        if (dto.classification() != null)
-            doc.setClassification(dto.classification());
-        if (dto.revision() != null)
-            doc.setRevision(dto.revision());
-        if (dto.status() != null)
-            doc.setStatus(dto.status());
-        if (dto.effectiveFrom() != null)
-            doc.setEffectiveFrom(dto.effectiveFrom());
-        if (dto.effectiveTo() != null)
-            doc.setEffectiveTo(dto.effectiveTo());
-        if (dto.bucket() != null)
-            doc.setBucket(dto.bucket());
-        if (dto.objectKey() != null)
-            doc.setObjectKey(dto.objectKey());
-        if (dto.versionId() != null)
-            doc.setVersionId(dto.versionId());
-        if (dto.etag() != null)
-            doc.setEtag(dto.etag());
-        if (dto.encryption() != null)
-            doc.setEncryption(dto.encryption());
-        if (dto.kmsKeyId() != null)
-            doc.setKmsKeyId(dto.kmsKeyId());
-        if (dto.createdByUserId() != null)
-            doc.setCreatedByUserId(dto.createdByUserId());
+        doc.setDocType(dto.docType());
+        doc.setTitle(dto.title());
+        doc.setOriginalFilename(dto.originalFilename());
+        doc.setMimeType(dto.mimeType());
+        doc.setSizeBytes(dto.sizeBytes());
+        doc.setChecksumSha256(dto.checksumSha256());
+        doc.setClassification(dto.classification() != null ? dto.classification() : Classification.INTERNAL);
+        doc.setRevision(dto.revision() != null ? dto.revision() : "A");
+        doc.setStatus(dto.status() != null ? dto.status() : Status.DRAFT);
+        doc.setEffectiveFrom(dto.effectiveFrom());
+        doc.setEffectiveTo(dto.effectiveTo());
+        doc.setBucket(dto.bucket());
+        doc.setObjectKey(dto.objectKey());
+        doc.setVersionId(dto.versionId());
+        doc.setEtag(dto.etag());
+        doc.setEncryption(dto.encryption() != null ? dto.encryption() : Encryption.NONE);
+        doc.setKmsKeyId(dto.kmsKeyId());
+        doc.setCreatedByUserId(dto.createdByUserId());
         return doc;
     }
 }

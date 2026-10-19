@@ -5,7 +5,9 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 @Entity
-@Table(name = "document_link", indexes = {
+@Table(name = "document_link", uniqueConstraints = {
+        @UniqueConstraint(name = "ux_document_link", columnNames = { "document_id", "link_id", "link_type" })
+}, indexes = {
         @Index(name = "idx_document_link_document", columnList = "document_id"),
         @Index(name = "idx_document_link_link_type", columnList = "link_type")
 })
@@ -13,7 +15,11 @@ public class DocumentLink {
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    @Column(name = "link_id", nullable = false, updatable = false)
+    @Column(name = "id", nullable = false, updatable = false)
+    private UUID id;
+
+    /** Id of the item or order (see {@link #linkType}) the document is attached to. */
+    @Column(name = "link_id", nullable = false)
     private UUID linkId;
 
     @Column(name = "document_id", nullable = false)
@@ -54,6 +60,14 @@ public class DocumentLink {
 
     public enum Purpose {
         PRIMARY, REFERENCE
+    }
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
     }
 
     public UUID getLinkId() {

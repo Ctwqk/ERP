@@ -33,7 +33,7 @@ public class Document {
     @Column(name = "size_bytes", nullable = false)
     private Long sizeBytes;
 
-    @Column(name = "checksum_sha256", nullable = false, length = 64)
+    @Column(name = "checksum_sha256", length = 64)
     private String checksumSha256;
 
     @Enumerated(EnumType.STRING)
