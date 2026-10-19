@@ -5,6 +5,7 @@ import com.example.auth.domain.AppRole.RoleName;
 import com.example.auth.repository.AppRoleRepository;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 
 import java.util.EnumSet;
@@ -15,6 +16,7 @@ import java.util.stream.Collectors;
  * Seed default roles at startup. Idempotent: only inserts missing ones.
  */
 @Component
+@Order(1)
 public class RoleSeeder implements ApplicationRunner {
 
     private final AppRoleRepository roleRepository;

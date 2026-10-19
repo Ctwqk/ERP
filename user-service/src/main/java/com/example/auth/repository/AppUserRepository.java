@@ -16,19 +16,12 @@ import java.util.UUID;
 public interface AppUserRepository extends JpaRepository<AppUser, UUID> {
     Optional<AppUser> findByEmail(String email);
 
-    @Query(value = """
-            select * from app_user
-             where (:keyword is null or lower(name) like lower(concat('%', :keyword, '%'))
-                    or lower(email) like lower(concat('%', :keyword, '%')))
-               and (:active is null or active = :active)
-            """,
-            countQuery = """
-            select count(*) from app_user
-             where (:keyword is null or lower(name) like lower(concat('%', :keyword, '%'))
-                    or lower(email) like lower(concat('%', :keyword, '%')))
-               and (:active is null or active = :active)
-            """,
-            nativeQuery = true)
+    @Query("""
+            select u from AppUser u
+             where (:keyword is null or lower(u.name) like lower(concat('%', cast(:keyword as string), '%'))
+                    or lower(u.email) like lower(concat('%', cast(:keyword as string), '%')))
+               and (:active is null or u.active = :active)
+            """)
     Page<AppUser> search(@Param("keyword") String keyword,
                          @Param("active") Boolean active,
                          Pageable pageable);

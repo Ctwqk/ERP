@@ -13,7 +13,7 @@ public class AppUserDto {
     private Boolean active;
     private OffsetDateTime createdAt;
     private OffsetDateTime updatedAt;
-    private List<AppRoleDto> userRoles;
+    private List<String> roles = List.of();
 
     public AppUserDto() {
     }
@@ -25,6 +25,7 @@ public class AppUserDto {
         this.active = user.getActive();
         this.createdAt = user.getCreatedAt();
         this.updatedAt = user.getUpdatedAt();
+        this.roles = user.getRoles();
     }
 
     public UUID getId() {
@@ -75,23 +76,11 @@ public class AppUserDto {
         this.updatedAt = updatedAt;
     }
 
-    public List<AppRoleDto> getUserRoles() {
-        return userRoles;
-    }
-
-    public void setUserRoles(List<AppRoleDto> userRoles) {
-        this.userRoles = userRoles;
-    }
-
-    /**
-     * Convenience: returns role names from userRoles.
-     */
     public List<String> getRoles() {
-        if (userRoles == null) {
-            return List.of();
-        }
-        return userRoles.stream()
-                .map(AppRoleDto::getName)
-                .toList();
+        return roles;
+    }
+
+    public void setRoles(List<String> roles) {
+        this.roles = roles;
     }
 }

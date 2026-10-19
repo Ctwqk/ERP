@@ -1,13 +1,9 @@
 package com.example.auth.service;
 
-import com.example.auth.domain.AppRole.RoleName;
 import com.example.auth.dto.AppUserDto;
-import com.example.auth.dto.AppRoleDto;
+import java.util.UUID;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-
-import java.util.List;
-import java.util.UUID;
 
 public interface AppUserService {
     AppUserDto createUser(String userName, String email, String password);
@@ -16,29 +12,20 @@ public interface AppUserService {
 
     AppUserDto getUserByEmail(String email);
 
+    Page<AppUserDto> searchUsers(String keyword, Boolean active, Pageable pageable);
+
     void disableUser(UUID id);
 
     void enableUser(UUID id);
-
-    List<AppUserDto> getAllUsers();
-
-    Page<AppUserDto> searchUsers(String keyword, Boolean active, Pageable pageable);
-
-    List<AppRoleDto> getUsersByRoleIds(List<UUID> roleIds);
-
-    List<AppRoleDto> getUsersByRoleNames(List<RoleName> roleNames);
 
     void assignRoleToUser(UUID userId, UUID roleId);
 
     void removeRoleFromUser(UUID userId, UUID roleId);
 
-    // void disableRoleForUser(UUID userId, UUID roleId);
-
-    // void enableRoleForUser(UUID userId, UUID roleId);
-
     void changePassword(UUID userId, String oldPassword, String newPassword);
 
-    AppUserDto updateUser(AppUserDto user);
+    /** Patches name, e-mail and (when {@code allowActiveChange}) the active flag; null fields are left alone. */
+    AppUserDto updateUser(AppUserDto user, boolean allowActiveChange);
 
     void deleteUser(UUID id);
 }

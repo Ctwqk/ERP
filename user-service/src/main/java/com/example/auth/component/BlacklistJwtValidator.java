@@ -1,13 +1,13 @@
 package com.example.auth.component;
 
+import com.example.auth.service.JwtBlacklistService;
 import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.OAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Component;
 
-import com.example.auth.service.JwtBlacklistService;
-
+/** Rejects access tokens that were revoked through {@code POST /auth/logout}. */
 @Component
 public class BlacklistJwtValidator implements OAuth2TokenValidator<Jwt> {
 
@@ -21,8 +21,7 @@ public class BlacklistJwtValidator implements OAuth2TokenValidator<Jwt> {
     public OAuth2TokenValidatorResult validate(Jwt jwt) {
         String jti = jwt.getId();
         if (jti != null && blacklistService.isBlacklisted(jti)) {
-            OAuth2Error err = new OAuth2Error("invalid_token", "Token is blacklisted", null);
-            return OAuth2TokenValidatorResult.failure(err);
+            return OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Token has been revoked", null));
         }
         return OAuth2TokenValidatorResult.success();
     }

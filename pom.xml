@@ -23,6 +23,7 @@
     <module>inventory-service</module>
     <module>notification-service</module>
     <module>task-service</module>
+    <module>user-service</module>
   </modules>
 
   <properties>

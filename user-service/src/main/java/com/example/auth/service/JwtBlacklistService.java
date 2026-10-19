@@ -3,13 +3,11 @@ package com.example.auth.service;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import java.time.Duration;
 
 import java.util.concurrent.TimeUnit;
 
 @Service
-@Transactional
 public class JwtBlacklistService {
     private static final String BLACKLIST_PREFIX = "jwt:bl:";
 

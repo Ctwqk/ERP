@@ -15,8 +15,21 @@ public final class SecurityUtils {
         if (auth == null || !(auth.getPrincipal() instanceof Jwt jwt)) {
             throw new IllegalStateException("No JWT principal");
         }
-        String uid = jwt.getClaimAsString("uid");
-        return UUID.fromString(uid);
+        UUID uid = com.example.common.security.JwtUsers.userId(jwt);
+        if (uid == null) {
+            throw new IllegalStateException("Token has no uid claim");
+        }
+        return uid;
+    }
+
+    public static boolean hasAnyRole(String... roles) {
+        List<String> mine = currentUserRolesOrThrow();
+        for (String role : roles) {
+            if (mine.contains(role)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public static List<String> currentUserRolesOrThrow() {

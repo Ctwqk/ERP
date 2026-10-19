@@ -1,112 +1,60 @@
 package com.example.auth.service;
 
-import com.example.auth.domain.AppRole;
 import com.example.auth.domain.AppRole.RoleName;
-import com.example.auth.domain.AppUserRole;
-import java.util.stream.Collectors;
+import com.example.auth.dto.AppRoleDto;
 import com.example.auth.repository.AppRoleRepository;
-import com.example.auth.repository.AppUserRoleRepository;
-import com.example.auth.repository.AppUserRepository;
-import java.util.UUID;
 import java.util.List;
-import java.util.ArrayList;
+import java.util.UUID;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.example.auth.dto.AppRoleDto;
-import com.example.auth.dto.AppUserDto;
+import org.springframework.web.server.ResponseStatusException;
 
 @Service
 @Transactional
 public class AppRoleServiceImpl implements AppRoleService {
+
     private final AppRoleRepository appRoleRepository;
-    private final AppUserRoleRepository appUserRoleRepository;
-    private final AppUserRepository appUserRepository;
 
-    public AppRoleServiceImpl(AppRoleRepository appRoleRepository, AppUserRoleRepository appUserRoleRepository,
-            AppUserRepository appUserRepository) {
+    public AppRoleServiceImpl(AppRoleRepository appRoleRepository) {
         this.appRoleRepository = appRoleRepository;
-        this.appUserRoleRepository = appUserRoleRepository;
-        this.appUserRepository = appUserRepository;
     }
 
     @Override
-    public AppRoleDto createRole(String roleName) {
-        RoleName rn = parse(roleName);
-        AppRole role = appRoleRepository.save(new AppRole(rn));
-        return new AppRoleDto(role.getId(), role.getName(), role.getCreatedAt(), role.getUpdatedAt(), null);
-    }
-
-    @Override
+    @Transactional(readOnly = true)
     public AppRoleDto getRoleByName(String name) {
-        RoleName roleName = parse(name);
-        AppRole role = appRoleRepository.findByName(roleName).orElseThrow(() -> new RuntimeException("Role not found"));
-        return new AppRoleDto(role);
+        return new AppRoleDto(appRoleRepository.findByName(parse(name)).orElseThrow(AppRoleServiceImpl::notFound));
     }
 
     @Override
-    public List<AppRoleDto> getRolesByUserIds(List<UUID> ids) {
-
-        List<AppRoleDto> roles = new ArrayList<>();
-        for (UUID id : ids) {
-            roles.add(new AppRoleDto(
-                    appRoleRepository.findById(id).orElseThrow(() -> new RuntimeException("Role not found"))));
-            roles.get(roles.size() - 1).setUsers(appUserRoleRepository.findAllByUserId(id).stream()
-                    .map(AppUserRole::getUser).map(AppUserDto::new).collect(Collectors.toList()));
-        }
-        return roles;
+    @Transactional(readOnly = true)
+    public AppRoleDto getRoleById(UUID id) {
+        return new AppRoleDto(appRoleRepository.findById(id).orElseThrow(AppRoleServiceImpl::notFound));
     }
 
     @Override
-    public List<AppRoleDto> getRolesByUserEmails(List<String> emails) {
-        List<AppRoleDto> roles = new ArrayList<>();
-        for (String email : emails) {
-            roles.add(new AppRoleDto(appRoleRepository.findById(appUserRepository.findByEmail(email).get().getId())
-                    .orElseThrow(() -> new RuntimeException("Role not found"))));
-            roles.get(roles.size() - 1)
-                    .setUsers(appUserRoleRepository.findAllByUserId(appUserRepository.findByEmail(email).get().getId())
-                            .stream().map(AppUserRole::getUser).map(AppUserDto::new).collect(Collectors.toList()));
-        }
-        return roles;
-    }
-
-    @Override
-    public AppRoleDto updateRole(AppRoleDto role) {
-        if (role.getId() == null) {
-            throw new RuntimeException("Role ID is required");
-        }
-        RoleName rn = role.getName() != null ? parse(role.getName()) : null;
-        int updated = appRoleRepository.patchRole(
-                role.getId(),
-                rn != null ? rn.name() : null,
-                null);
-        if (updated == 0) {
-            throw new RuntimeException("Role not found");
-        }
-        AppRole reloaded = appRoleRepository.findById(role.getId())
-                .orElseThrow(() -> new RuntimeException("Role not found"));
-        return new AppRoleDto(reloaded);
+    @Transactional(readOnly = true)
+    public List<AppRoleDto> getAllRoles() {
+        return appRoleRepository.findAll().stream().map(AppRoleDto::new).toList();
     }
 
     @Override
     public void deleteRole(UUID id) {
+        if (!appRoleRepository.existsById(id)) {
+            throw notFound();
+        }
         appRoleRepository.deleteById(id);
     }
 
-    @Override
-    public List<AppRoleDto> getAllRoles() {
-        return appRoleRepository.findAll().stream().map(AppRoleDto::new).collect(Collectors.toList());
-    }
-
-    @Override
-    public AppRoleDto getRoleById(UUID id) {
-        return new AppRoleDto(appRoleRepository.findById(id).orElseThrow(() -> new RuntimeException("Role not found")));
-    }
-
-    private RoleName parse(String name) {
+    private static RoleName parse(String name) {
         try {
             return RoleName.valueOf(name.toUpperCase());
-        } catch (Exception e) {
-            throw new RuntimeException("Invalid role name");
+        } catch (IllegalArgumentException | NullPointerException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role name: " + name);
         }
+    }
+
+    private static ResponseStatusException notFound() {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Role not found");
     }
 }
