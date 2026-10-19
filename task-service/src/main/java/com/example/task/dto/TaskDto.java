@@ -3,6 +3,7 @@ package com.example.task.dto;
 import com.example.task.domain.Task;
 import com.example.task.domain.Task.Priority;
 import com.example.task.domain.Task.Status;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -15,7 +16,7 @@ public record TaskDto(
         Priority priority,
         OffsetDateTime dueAt,
         UUID prerequisiteItemId,
-        Double prerequisiteItemQuantity,
+        BigDecimal prerequisiteItemQuantity,
         UUID assigneeUserId,
         UUID createdByUserId,
         OffsetDateTime createdAt,

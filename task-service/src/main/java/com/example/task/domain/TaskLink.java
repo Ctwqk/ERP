@@ -1,6 +1,8 @@
 package com.example.task.domain;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -26,6 +28,7 @@ public class TaskLink {
     @Column(name = "ref_id", nullable = false, length = 128)
     private String refId;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "ref_meta", columnDefinition = "jsonb")
     private String refMeta;
 

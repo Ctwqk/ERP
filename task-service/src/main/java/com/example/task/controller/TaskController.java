@@ -9,6 +9,7 @@ import com.example.task.dto.UpdateTaskStatusRequest;
 import com.example.task.service.TaskService;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -48,7 +49,7 @@ public class TaskController {
     @GetMapping
     public Page<TaskDto> list(@RequestParam(name = "assignee", defaultValue = "me") String assignee,
             @RequestParam(name = "status", required = false) String status,
-            @PageableDefault(size = 20) Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 20) Pageable pageable) {
         return taskService.listMyTasks(assignee, status, pageable);
     }
 

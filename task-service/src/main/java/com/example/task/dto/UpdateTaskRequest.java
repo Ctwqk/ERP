@@ -1,6 +1,7 @@
 package com.example.task.dto;
 
 import com.example.task.domain.Task.Priority;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -11,7 +12,7 @@ public record UpdateTaskRequest(
         OffsetDateTime dueAt,
         UUID assigneeUserId,
         UUID prerequisiteItemId,
-        Double prerequisiteItemQuantity
+        BigDecimal prerequisiteItemQuantity
 ) {
 }
 

@@ -22,6 +22,7 @@
     <module>erp-common</module>
     <module>inventory-service</module>
     <module>notification-service</module>
+    <module>task-service</module>
   </modules>
 
   <properties>

@@ -1,6 +1,7 @@
 package com.example.task.domain;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -36,8 +37,8 @@ public class Task {
     @Column(name = "prerequisite_item_id")
     private UUID prerequisiteItemId;
 
-    @Column(name = "prerequisite_item_quantity")
-    private Double prerequisiteItemQuantity;
+    @Column(name = "prerequisite_item_quantity", precision = 18, scale = 6)
+    private BigDecimal prerequisiteItemQuantity;
 
     @Column(name = "assignee_user_id")
     private UUID assigneeUserId;
@@ -88,8 +89,8 @@ public class Task {
     public void setDueAt(OffsetDateTime dueAt) { this.dueAt = dueAt; }
     public UUID getPrerequisiteItemId() { return prerequisiteItemId; }
     public void setPrerequisiteItemId(UUID prerequisiteItemId) { this.prerequisiteItemId = prerequisiteItemId; }
-    public Double getPrerequisiteItemQuantity() { return prerequisiteItemQuantity; }
-    public void setPrerequisiteItemQuantity(Double prerequisiteItemQuantity) { this.prerequisiteItemQuantity = prerequisiteItemQuantity; }
+    public BigDecimal getPrerequisiteItemQuantity() { return prerequisiteItemQuantity; }
+    public void setPrerequisiteItemQuantity(BigDecimal prerequisiteItemQuantity) { this.prerequisiteItemQuantity = prerequisiteItemQuantity; }
     public UUID getAssigneeUserId() { return assigneeUserId; }
     public void setAssigneeUserId(UUID assigneeUserId) { this.assigneeUserId = assigneeUserId; }
     public UUID getCreatedByUserId() { return createdByUserId; }
