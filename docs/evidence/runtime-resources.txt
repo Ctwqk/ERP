@@ -1,0 +1,33 @@
+Captured on 2026-10-19; memory/swap inspection fields are bytes.
+
+Integration test container sample:
+/pu-erp-test-b4372479-b591-4295-a7dc-2a4c7ff136e0 memory=536870912 swap=536870912 cpu=2000000000 ports={"5432/tcp":[{"HostIp":"127.0.0.1","HostPort":"42724"}]}
+/pu-erp-test-6de24294-f970-4163-8b8a-f7316225b208 memory=536870912 swap=536870912 cpu=2000000000 ports={"15671/tcp":[{"HostIp":"127.0.0.1","HostPort":"47120"}],"15672/tcp":[{"HostIp":"127.0.0.1","HostPort":"43112"}],"15691/tcp":null,"15692/tcp":null,"25672/tcp":null,"4369/tcp":null,"5671/tcp":[{"HostIp":"127.0.0.1","HostPort":"41597"}],"5672/tcp":[{"HostIp":"127.0.0.1","HostPort":"42756"}]}
+
+After the full HTTP smoke test (snapshot, not peak memory):
+pu-erp-auth-service: 400MiB / 768MiB
+pu-erp-inventory-service: 259.8MiB / 768MiB
+pu-erp-item-service: 373.1MiB / 768MiB
+pu-erp-minio: 76.98MiB / 512MiB
+pu-erp-notification-service: 266.4MiB / 768MiB
+pu-erp-postgres: 133.9MiB / 512MiB
+pu-erp-rabbitmq: 142MiB / 768MiB
+pu-erp-redis: 8.27MiB / 128MiB
+pu-erp-task-service: 262MiB / 768MiB
+
+Teardown:
+Container pu-erp-inventory-service  Removed
+Container pu-erp-task-service  Removed
+Container pu-erp-item-service  Removed
+Container pu-erp-notification-service  Removed
+Container pu-erp-minio  Removed
+Container pu-erp-auth-service  Removed
+Container pu-erp-postgres  Removed
+Container pu-erp-redis  Removed
+Container pu-erp-rabbitmq  Removed
+Volume pu-erp-minio-data  Removed
+Volume pu-erp-rabbitmq-data  Removed
+Volume pu-erp-postgres-data  Removed
+Network pu-erp-network  Removed
+
+Post-run docker ps, volume ls and network ls found no pu-erp-* resources.

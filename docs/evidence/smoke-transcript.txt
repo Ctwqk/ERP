@@ -1,0 +1,250 @@
+Captured from VERBOSE=1 ./scripts/stack-smoke.sh on 2026-10-19.
+Passwords, access tokens and presigned URLs are redacted; response bodies are truncated to 500 characters.
+
+== 1. Services are up
+  ok  user-service is healthy
+  ok  item-service is healthy
+  ok  inventory-service is healthy
+  ok  task-service is healthy
+  ok  notification-service is healthy
+
+== 2. Authentication
+  $ POST http://localhost:41801/auth/login  {"email":"admin@erp.local","password":"[REDACTED]"}
+    -> 200 {"accessToken":"[REDACTED]"}
+  ok  admin can log in (HTTP 200)
+  token claims: {"sub":"admin@erp.local","uid":"7b923b56-9891-48e4-a932-18ec51ebf9c7","roles":["ROLE_ADMIN","ROLE_USER"],"iss":"http://auth-service:8080","exp":1792457149,"iat":1792453549,"jti":"4edf49c3-eba4-4019-ade1-f23692bb32f0"}
+  ok  token carries ROLE_ADMIN
+  $ GET http://localhost:41801/api/users/me
+    -> 200 {"id":"7b923b56-9891-48e4-a932-18ec51ebf9c7","name":"Administrator","email":"admin@erp.local","active":true,"createdAt":"2026-10-19T23:44:58.959032Z","updatedAt":"2026-10-19T23:44:58.959043Z","roles":["ADMIN","USER"]}
+  ok  GET /api/users/me (HTTP 200)
+  $ POST http://localhost:41801/auth/login  {"email":"admin@erp.local","password":"[REDACTED]"}
+    -> 401 {"type":"about:blank","title":"Unauthorized","status":401,"detail":"Bad credentials","instance":"/auth/login"}
+  ok  wrong password is rejected (HTTP 401)
+  $ GET http://localhost:41802/api/items
+    -> 401 
+  ok  item-service rejects requests without a token (HTTP 401)
+  $ GET http://localhost:41802/api/items
+    -> 401 
+  ok  item-service rejects a forged token (HTTP 401)
+  $ GET http://localhost:41802/api/items
+    -> 200 {"content":[],"pageable":{"pageNumber":0,"pageSize":20,"sort":{"empty":true,"sorted":false,"unsorted":true},"offset":0,"paged":true,"unpaged":false},"last":true,"totalPages":0,"totalElements":0,"first":true,"size":20,"number":0,"sort":{"empty":true,"sorted":false,"unsorted":true},"numberOfElements":0,"empty":true}
+  ok  token issued by user-service is accepted by item-service (HTTP 200)
+  $ GET http://localhost:41803/api/inventory/stocks/7b923b56-9891-48e4-a932-18ec51ebf9c7
+    -> 404 {"type":"about:blank","title":"Not Found","status":404,"detail":"Stock not found for item 7b923b56-9891-48e4-a932-18ec51ebf9c7","instance":"/api/inventory/stocks/7b923b56-9891-48e4-a932-18ec51ebf9c7"}
+  ok  token is accepted by inventory-service (404 = no such stock) (HTTP 404)
+  $ POST http://localhost:41801/api/users/createUser  {"name":"Bob","email":"bob-179245354922562@erp.test","password":"[REDACTED]"}
+    -> 201 {"id":"508a3251-8674-4ae1-8a31-20a846547637","name":"Bob","email":"bob-179245354922562@erp.test","active":true,"createdAt":"2026-10-19T23:45:50.361748754Z","updatedAt":"2026-10-19T23:45:50.361758683Z","roles":["USER"]}
+  ok  admin creates a user (HTTP 201)
+  $ POST http://localhost:41801/auth/login  {"email":"bob-179245354922562@erp.test","password":"[REDACTED]"}
+    -> 200 {"accessToken":"[REDACTED]"}
+  $ GET http://localhost:41801/api/users
+    -> 403 
+  ok  ordinary user cannot list users (HTTP 403)
+
+== 3. Items, units of measure and a BOM (item-service)
+  $ GET http://localhost:41802/api/uoms
+    -> 200 [{"id":"00000000-0000-0000-0000-000000000001","code":"EA","name":"Each"},{"id":"00000000-0000-0000-0000-000000000002","code":"KG","name":"Kilogram"},{"id":"00000000-0000-0000-0000-000000000003","code":"G","name":"Gram"},{"id":"00000000-0000-0000-0000-000000000004","code":"M","name":"Meter"},{"id":"00000000-0000-0000-0000-000000000005","code":"L","name":"Liter"},{"id":"00000000-0000-0000-0000-000000000006","code":"BOX","name":"Box"}]
+  ok  EA and KG units are seeded
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-FG-179245354922562","name":"Smoke SMOKE-FG-179245354922562","itemType":"FG","baseUomId":"00000000-0000-0000-0000-000000000001"}
+    -> 201 {"id":"a3a9dc0c-b289-45b7-83c6-8f22bd79b636","skuCode":"SMOKE-FG-179245354922562","name":"Smoke SMOKE-FG-179245354922562","itemType":"FG","baseUomId":"00000000-0000-0000-0000-000000000001","active":true,"description":null,"createdAt":"2026-10-19T23:45:50.574372375Z","updatedAt":"2026-10-19T23:45:50.574391693Z","documentIds":null}
+  ok  create item SMOKE-FG-179245354922562 (HTTP 201)
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-STEEL-179245354922562","name":"Smoke SMOKE-STEEL-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000002"}
+    -> 201 {"id":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","skuCode":"SMOKE-STEEL-179245354922562","name":"Smoke SMOKE-STEEL-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000002","active":true,"description":null,"createdAt":"2026-10-19T23:45:50.633168736Z","updatedAt":"2026-10-19T23:45:50.63318595Z","documentIds":null}
+  ok  create item SMOKE-STEEL-179245354922562 (HTTP 201)
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-BOLT-179245354922562","name":"Smoke SMOKE-BOLT-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001"}
+    -> 201 {"id":"0999ffbe-9566-41c9-9504-436dfce05962","skuCode":"SMOKE-BOLT-179245354922562","name":"Smoke SMOKE-BOLT-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001","active":true,"description":null,"createdAt":"2026-10-19T23:45:50.662245848Z","updatedAt":"2026-10-19T23:45:50.662255949Z","documentIds":null}
+  ok  create item SMOKE-BOLT-179245354922562 (HTTP 201)
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-FG-179245354922562","name":"dup","itemType":"FG","baseUomId":"00000000-0000-0000-0000-000000000001"}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"SKU already exists: SMOKE-FG-179245354922562","instance":"/api/items"}
+  ok  duplicate SKU is a conflict (HTTP 409)
+  $ GET http://localhost:41802/api/items?keyword=SMOKE-FG&sort=skuCode,desc
+    -> 200 {"content":[{"id":"a3a9dc0c-b289-45b7-83c6-8f22bd79b636","skuCode":"SMOKE-FG-179245354922562","name":"Smoke SMOKE-FG-179245354922562","itemType":"FG","baseUomId":"00000000-0000-0000-0000-000000000001","active":true,"description":null,"createdAt":"2026-10-19T23:45:50.574372Z","updatedAt":"2026-10-19T23:45:50.574392Z","documentIds":null}],"pageable":{"pageNumber":0,"pageSize":20,"sort":{"empty":false,"sorted":true,"unsorted":false},"offset":0,"paged":true,"unpaged":false},"last":true,"totalPages":
+  ok  items can be searched and sorted (HTTP 200)
+  $ GET http://localhost:41802/api/items?sort=bogus
+    -> 400 {"type":"about:blank","title":"Bad Request","status":400,"detail":"Invalid sort parameter","instance":"/api/items"}
+  ok  an unknown sort property is a 400, not a 500 (HTTP 400)
+  $ POST http://localhost:41802/api/boms  {"productItemId":"a3a9dc0c-b289-45b7-83c6-8f22bd79b636","revision":"A","lines":[{"componentItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","qtyPer":2.5,"scrapRate":0.2},{"componentItemId":"0999ffbe-9566-41c9-9504-436dfce05962","qtyPer":4}]}
+    -> 201 {"id":"9317335a-03a9-41bf-a95c-afcb3e855fd1","productItemId":"a3a9dc0c-b289-45b7-83c6-8f22bd79b636","revision":"A","status":"DRAFT","effectiveFrom":"2026-10-19T23:45:50.802094059Z","effectiveTo":null,"note":null,"createdAt":"2026-10-19T23:45:50.802068669Z","updatedAt":"2026-10-19T23:45:50.802085683Z","lines":[{"id":"ec4b6305-7701-4a79-bb93-a8afeba0a4ee","lineNo":10,"componentItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","qtyPer":2.5,"uomId":"00000000-0000-0000-0000-000000000002","scrapRate":0.2
+  ok  create DRAFT BOM with two lines (HTTP 201)
+  $ GET http://localhost:41802/api/boms/9317335a-03a9-41bf-a95c-afcb3e855fd1/requirements?quantity=10
+    -> 200 [{"lineNo":10,"componentItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","componentSku":"SMOKE-STEEL-179245354922562","uomId":"00000000-0000-0000-0000-000000000002","netQuantity":25.000000,"scrapRate":0.200000,"grossQuantity":31.250000},{"lineNo":20,"componentItemId":"0999ffbe-9566-41c9-9504-436dfce05962","componentSku":"SMOKE-BOLT-179245354922562","uomId":"00000000-0000-0000-0000-000000000001","netQuantity":40.000000,"scrapRate":0.000000,"grossQuantity":40.000000}]
+  ok  requirements for 10 units: 25 kg steel net, 31.25 gross after 20% scrap, 40 bolts
+  $ PUT http://localhost:41802/api/boms/9317335a-03a9-41bf-a95c-afcb3e855fd1  {"status":"ACTIVE"}
+    -> 200 {"id":"9317335a-03a9-41bf-a95c-afcb3e855fd1","productItemId":"a3a9dc0c-b289-45b7-83c6-8f22bd79b636","revision":"A","status":"ACTIVE","effectiveFrom":"2026-10-19T23:45:50.802094Z","effectiveTo":null,"note":null,"createdAt":"2026-10-19T23:45:50.802069Z","updatedAt":"2026-10-19T23:45:50.900052678Z","lines":[{"id":"ec4b6305-7701-4a79-bb93-a8afeba0a4ee","lineNo":10,"componentItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","qtyPer":2.500000,"uomId":"00000000-0000-0000-0000-000000000002","scrapRate":0.2
+  ok  activate the BOM (HTTP 200)
+  $ POST http://localhost:41802/api/boms/9317335a-03a9-41bf-a95c-afcb3e855fd1/lines  {"componentItemId":"0999ffbe-9566-41c9-9504-436dfce05962","qtyPer":1}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"Cannot add lines to a ACTIVE BOM; only DRAFT BOMs are editable","instance":"/api/boms/9317335a-03a9-41bf-a95c-afcb3e855fd1/lines"}
+  ok  an ACTIVE BOM is frozen (HTTP 409)
+
+== 4. Inventory movements (inventory-service)
+  $ POST http://localhost:41803/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions  {"type":"OUT","quantity":1}
+    -> 404 {"type":"about:blank","title":"Not Found","status":404,"detail":"Stock not found for item 098f4c42-7ae9-44cb-a8ca-5db8983ff33f","instance":"/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions"}
+  ok  cannot take stock out of an item that was never stocked (HTTP 404)
+  $ POST http://localhost:41803/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions  {"type":"IN","quantity":100}
+    -> 201 {"id":"b0048165-b9d9-42e8-9559-f451310c8bb4","itemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","quantity":100.000000,"createdAt":"2026-10-19T23:45:51.059537Z","updatedAt":"2026-10-19T23:45:51.059537Z"}
+  ok  receive 100 kg steel (HTTP 201)
+  $ POST http://localhost:41803/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions  {"type":"OUT","quantity":30.5}
+    -> 201 {"id":"b0048165-b9d9-42e8-9559-f451310c8bb4","itemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","quantity":69.500000,"createdAt":"2026-10-19T23:45:51.059537Z","updatedAt":"2026-10-19T23:45:51.085626Z"}
+  ok  issue 30.5 kg (HTTP 201)
+  $ GET http://localhost:41803/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f
+    -> 200 {"id":"b0048165-b9d9-42e8-9559-f451310c8bb4","itemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","quantity":69.500000,"createdAt":"2026-10-19T23:45:51.059537Z","updatedAt":"2026-10-19T23:45:51.139034Z"}
+  ok  stock is 69.5
+  $ POST http://localhost:41803/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions  {"type":"OUT","quantity":500}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"Insufficient stock: available 69.5, requested 500","instance":"/api/inventory/stocks/098f4c42-7ae9-44cb-a8ca-5db8983ff33f/transactions"}
+  ok  cannot go below zero (HTTP 409)
+  $ GET http://localhost:41803/api/inventory/stocks/b0048165-b9d9-42e8-9559-f451310c8bb4/transactions
+    -> 200 [{"id":"67dec834-46bf-4dde-abab-b08fa84043d6","stockId":"b0048165-b9d9-42e8-9559-f451310c8bb4","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","transactionType":"OUT","quantity":30.500000,"createdAt":"2026-10-19T23:45:51.138859Z","updatedAt":"2026-10-19T23:45:51.138859Z"},{"id":"8f01fc26-000a-40fe-a616-bc638fa592da","stockId":"b0048165-b9d9-42e8-9559-f451310c8bb4","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","transactionType":"IN","quantity":100.000000,"createdAt":"2026-10-19T23:45:51.079232Z
+  ok  ledger has both movements, newest first
+  $ POST http://localhost:41803/api/inventory/stocks/0999ffbe-9566-41c9-9504-436dfce05962/transactions  {"type":"IN","quantity":10}
+    -> 201 {"id":"046dd7ff-7b25-48a8-bff8-841d3873cab9","itemId":"0999ffbe-9566-41c9-9504-436dfce05962","quantity":10.000000,"createdAt":"2026-10-19T23:45:51.251287Z","updatedAt":"2026-10-19T23:45:51.251287Z"}
+  ok  receive 10 bolts (HTTP 201)
+
+== 5. Orders confirm against live stock (item-service -> inventory-service over HTTP)
+  $ POST http://localhost:41802/api/orders  {"items":[{"sku":"SMOKE-STEEL-179245354922562","quantity":5,"unitPriceCents":1200}]}
+    -> 201 {"id":"c9a817bf-02da-4361-a7f3-56cbe50dbf76","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","status":"NEW","totalAmountCents":6000,"items":[{"id":"741b1438-149d-4a61-b88a-42d1f6bafcc4","itemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","sku":"SMOKE-STEEL-179245354922562","quantity":5,"unitPriceCents":1200,"lineAmountCents":6000}],"documentIds":[],"createdAt":"2026-10-19T23:45:51.3267917Z","updatedAt":"2026-10-19T23:45:51.326803822Z"}
+  ok  create an order by SKU (HTTP 201)
+  ok  total is 6000 cents
+  $ PATCH http://localhost:41802/api/orders/c9a817bf-02da-4361-a7f3-56cbe50dbf76/status  {"status":"CONFIRMED"}
+    -> 200 {"id":"c9a817bf-02da-4361-a7f3-56cbe50dbf76","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","status":"CONFIRMED","totalAmountCents":6000,"items":[{"id":"741b1438-149d-4a61-b88a-42d1f6bafcc4","itemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","sku":"SMOKE-STEEL-179245354922562","quantity":5,"unitPriceCents":1200,"lineAmountCents":6000}],"documentIds":[],"createdAt":"2026-10-19T23:45:51.326792Z","updatedAt":"2026-10-19T23:45:51.434670413Z"}
+  ok  order within stock is confirmed (HTTP 200)
+  $ POST http://localhost:41802/api/orders  {"items":[{"sku":"SMOKE-BOLT-179245354922562","quantity":50,"unitPriceCents":10}]}
+    -> 201 {"id":"5c79b312-d6b5-441b-8268-b62735ec72f1","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","status":"NEW","totalAmountCents":500,"items":[{"id":"c0d294a3-c4e6-4198-ba72-87693084a0d9","itemId":"0999ffbe-9566-41c9-9504-436dfce05962","sku":"SMOKE-BOLT-179245354922562","quantity":50,"unitPriceCents":10,"lineAmountCents":500}],"documentIds":[],"createdAt":"2026-10-19T23:45:51.462756607Z","updatedAt":"2026-10-19T23:45:51.462765928Z"}
+  $ PATCH http://localhost:41802/api/orders/5c79b312-d6b5-441b-8268-b62735ec72f1/status  {"status":"CONFIRMED"}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"Insufficient stock to confirm order: SMOKE-BOLT-179245354922562 (available 10, required 50)","instance":"/api/orders/5c79b312-d6b5-441b-8268-b62735ec72f1/status"}
+  ok  order beyond stock cannot be confirmed (HTTP 409)
+  ok  the reply names the shortage
+  $ GET http://localhost:41802/api/orders/c9a817bf-02da-4361-a7f3-56cbe50dbf76
+    -> 403 {"type":"about:blank","title":"Forbidden","status":403,"detail":"Not your order","instance":"/api/orders/c9a817bf-02da-4361-a7f3-56cbe50dbf76"}
+  ok  another user cannot read the order (HTTP 403)
+
+== 6. Document upload -> MinIO -> RabbitMQ -> notification-service / order import
+  $ POST http://localhost:41802/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:init  {"filename":"drawing-179245354922562.txt","contentType":"text/plain","sizeBytes":34,"linkType":"ITEM"}
+    -> 200 {"documentId":"5f91c2a5-4eb5-4194-965e-85fe23b2a4c4","bucket":"erp-assets","objectKey":"items/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/47e47fff-090e-4d61-94d1-f9b51d926af8","uploadUrl":"[REDACTED]","expiresAt":"2026-10-19T23:55:51.580239017Z"}
+  ok  init upload (presigned PUT URL) (HTTP 200)
+  $ POST http://localhost:41802/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:complete  {"documentId":"5f91c2a5-4eb5-4194-965e-85fe23b2a4c4"}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"No object found in storage - upload the file to the presigned URL first","instance":"/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:complete"}
+  ok  cannot complete before the file is uploaded (HTTP 409)
+  $ POST http://localhost:41802/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:complete  {"documentId":"5f91c2a5-4eb5-4194-965e-85fe23b2a4c4"}
+    -> 403 {"type":"about:blank","title":"Forbidden","status":403,"detail":"Only the uploader can complete this document","instance":"/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:complete"}
+  ok  another user cannot complete the upload (HTTP 403)
+  ok  PUT straight to MinIO with the presigned URL (HTTP 200)
+  $ POST http://localhost:41802/api/documents/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/images:complete  {"documentId":"5f91c2a5-4eb5-4194-965e-85fe23b2a4c4"}
+    -> 200 {"ok":true}
+  ok  complete upload (HTTP 200)
+  $ GET http://localhost:41802/api/documents?itemId=a3a9dc0c-b289-45b7-83c6-8f22bd79b636
+    -> 200 [{"id":"5f91c2a5-4eb5-4194-965e-85fe23b2a4c4","docType":"ITEM","title":"drawing-179245354922562.txt","originalFilename":"drawing-179245354922562.txt","mimeType":"text/plain","sizeBytes":34,"checksumSha256":null,"classification":"INTERNAL","revision":"A","status":"APPROVED","effectiveFrom":null,"effectiveTo":null,"bucket":"erp-assets","objectKey":"items/a3a9dc0c-b289-45b7-83c6-8f22bd79b636/47e47fff-090e-4d61-94d1-f9b51d926af8","versionId":null,"etag":"b4a15c8b9efaccfdafb63ddddd1589a5","encryption
+  ok  document is attached to the item and APPROVED
+  $ GET http://localhost:41802/api/documents/documents/5f91c2a5-4eb5-4194-965e-85fe23b2a4c4:download-url
+    -> 200 {"url":"[REDACTED]"}
+  ok  presigned download URL (HTTP 200)
+  ok  downloaded bytes equal the uploaded bytes
+  $ GET http://localhost:41806/api/notifications?status=UNREAD&size=50
+    -> 200 {"content":[{"id":"80febc7b-9584-421a-a7b6-d61aa666ac34","title":"Document uploaded","content":"Your ITEM upload 5f91c2a5-4eb5-4194-965e-85fe23b2a4c4 is available.","type":"DOCUMENT_UPLOADED","status":"UNREAD","recipientUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"00000000-0000-0000-0000-000000000000","createdAt":"2026-10-19T23:45:51.861144Z","updatedAt":"2026-10-19T23:45:51.861144Z","readAt":null,"links":[{"id":"6723d574-09cc-4b90-9bd7-01f5ff258441","notificationId":"80febc
+  ok  RabbitMQ delivered the upload event: notification-service created a DOCUMENT_UPLOADED notification
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-IMPORT-A-179245354922562","name":"Smoke SMOKE-IMPORT-A-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001"}
+    -> 201 {"id":"2e56daa8-e461-4814-b97b-6b71134e0ac9","skuCode":"SMOKE-IMPORT-A-179245354922562","name":"Smoke SMOKE-IMPORT-A-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001","active":true,"description":null,"createdAt":"2026-10-19T23:45:51.9917722Z","updatedAt":"2026-10-19T23:45:51.991781738Z","documentIds":null}
+  ok  create item SMOKE-IMPORT-A-179245354922562 (HTTP 201)
+  $ POST http://localhost:41802/api/items  {"skuCode":"SMOKE-IMPORT-B-179245354922562","name":"Smoke SMOKE-IMPORT-B-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001"}
+    -> 201 {"id":"1b882284-cde9-424c-9fa5-2ec7be0e3bdb","skuCode":"SMOKE-IMPORT-B-179245354922562","name":"Smoke SMOKE-IMPORT-B-179245354922562","itemType":"RAW","baseUomId":"00000000-0000-0000-0000-000000000001","active":true,"description":null,"createdAt":"2026-10-19T23:45:52.020972542Z","updatedAt":"2026-10-19T23:45:52.020982481Z","documentIds":null}
+  ok  create item SMOKE-IMPORT-B-179245354922562 (HTTP 201)
+  $ POST http://localhost:41802/api/documents/cc761d04-e3e1-46a7-9401-06665c384d15/images:init  {"filename":"po-179245354922562.xlsx","sizeBytes":1648,"linkType":"ORDER"}
+    -> 200 {"documentId":"121c42db-8c6f-4ffb-ad53-73fde78b6fd2","bucket":"erp-assets","objectKey":"orders/cc761d04-e3e1-46a7-9401-06665c384d15/ff104034-8162-4dc4-9662-d1a93eddff45","uploadUrl":"[REDACTED]","expiresAt":"2026-10-19T23:55:52.109487589Z"}
+  ok  init upload of an order spreadsheet (HTTP 200)
+  $ POST http://localhost:41802/api/documents/cc761d04-e3e1-46a7-9401-06665c384d15/images:complete  {"documentId":"121c42db-8c6f-4ffb-ad53-73fde78b6fd2"}
+    -> 200 {"ok":true}
+  ok  complete the spreadsheet upload (HTTP 200)
+  $ GET http://localhost:41802/api/orders?size=100
+    -> 200 {"content":[{"id":"5c79b312-d6b5-441b-8268-b62735ec72f1","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","status":"NEW","totalAmountCents":500,"items":[{"id":"c0d294a3-c4e6-4198-ba72-87693084a0d9","itemId":"0999ffbe-9566-41c9-9504-436dfce05962","sku":"SMOKE-BOLT-179245354922562","quantity":50,"unitPriceCents":10,"lineAmountCents":500}],"documentIds":[],"createdAt":"2026-10-19T23:45:51.462757Z","updatedAt":"2026-10-19T23:45:51.462766Z"},{"id":"c9a817bf-02da-4361-a7f3-56cbe50dbf76","userId":"7b923
+  $ GET http://localhost:41802/api/orders?size=100
+    -> 200 {"content":[{"id":"c4367d34-503b-4377-acae-1fe5116e7291","userId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","status":"NEW","totalAmountCents":1150,"items":[{"id":"d78df3a0-fd56-4c77-bd9c-178852ff3bb6","itemId":"2e56daa8-e461-4814-b97b-6b71134e0ac9","sku":"SMOKE-IMPORT-A-179245354922562","quantity":4,"unitPriceCents":250,"lineAmountCents":1000},{"id":"2bda0e23-cf93-4b42-8784-28d1d71fdc29","itemId":"1b882284-cde9-424c-9fa5-2ec7be0e3bdb","sku":"SMOKE-IMPORT-B-179245354922562","quantity":10,"unitPriceC
+  ok  RabbitMQ delivered the upload event: item-service imported the spreadsheet as an order (1150 cents, 2 lines)
+  $ POST http://localhost:41802/api/orders/121c42db-8c6f-4ffb-ad53-73fde78b6fd2/import
+    -> 403 {"type":"about:blank","title":"Forbidden","status":403,"detail":"Only the uploader can import this document","instance":"/api/orders/121c42db-8c6f-4ffb-ad53-73fde78b6fd2/import"}
+  ok  another user cannot import the spreadsheet (HTTP 403)
+
+== 7. Tasks with stock prerequisites (task-service -> user/item/inventory-service) and task.completed -> notification
+  $ POST http://localhost:41805/api/tasks  {"title":"Cut steel 179245354922562","priority":"HIGH","assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":20}
+    -> 201 {"id":"a723ad9f-3372-4838-8c61-606368ee6595","title":"Cut steel 179245354922562","description":null,"status":"OPEN","priority":"HIGH","dueAt":null,"prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":20,"assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdAt":"2026-10-19T23:45:53.519436664Z","updatedAt":"2026-10-19T23:45:53.519436664Z","completedAt":null,"links":[]}
+  ok  create a task that needs 20 kg steel (HTTP 201)
+  $ POST http://localhost:41805/api/tasks  {"title":"bad","assigneeUserId":"00708549-87f3-494b-acda-7074700b8013"}
+    -> 400 {"type":"about:blank","title":"Bad Request","status":400,"detail":"Assignee not found","instance":"/api/tasks"}
+  ok  unknown assignee is rejected (user-service lookup) (HTTP 400)
+  $ POST http://localhost:41805/api/tasks  {"title":"bad","prerequisiteItemId":"00ab73bd-0b18-4727-a4bd-6534e84949bf","prerequisiteItemQuantity":1}
+    -> 400 {"type":"about:blank","title":"Bad Request","status":400,"detail":"Prerequisite item not found","instance":"/api/tasks"}
+  ok  unknown prerequisite item is rejected (item-service lookup) (HTTP 400)
+  $ PATCH http://localhost:41805/api/tasks/a723ad9f-3372-4838-8c61-606368ee6595/status  {"status":"DONE"}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"Invalid status transition OPEN -> DONE","instance":"/api/tasks/a723ad9f-3372-4838-8c61-606368ee6595/status"}
+  ok  OPEN -> DONE is not a valid transition (HTTP 409)
+  $ PATCH http://localhost:41805/api/tasks/a723ad9f-3372-4838-8c61-606368ee6595/status  {"status":"IN_PROGRESS"}
+    -> 200 {"id":"a723ad9f-3372-4838-8c61-606368ee6595","title":"Cut steel 179245354922562","description":null,"status":"IN_PROGRESS","priority":"HIGH","dueAt":null,"prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":20.000000,"assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdAt":"2026-10-19T23:45:53.519437Z","updatedAt":"2026-10-19T23:45:53.820591872Z","completedAt":null,"links":[]}
+  ok  start: 69.5 kg in stock covers the 20 kg prerequisite (inventory-service lookup) (HTTP 200)
+  $ POST http://localhost:41805/api/tasks  {"title":"Too big 179245354922562","assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":1000}
+    -> 201 {"id":"87367cb9-f950-4bba-969f-f581a67a7cf1","title":"Too big 179245354922562","description":null,"status":"OPEN","priority":"MEDIUM","dueAt":null,"prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":1000,"assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdAt":"2026-10-19T23:45:53.868503418Z","updatedAt":"2026-10-19T23:45:53.868503418Z","completedAt":null,"links":[]}
+  $ PATCH http://localhost:41805/api/tasks/87367cb9-f950-4bba-969f-f581a67a7cf1/status  {"status":"IN_PROGRESS"}
+    -> 409 {"type":"about:blank","title":"Conflict","status":409,"detail":"Prerequisite not met: not enough stock of item 098f4c42-7ae9-44cb-a8ca-5db8983ff33f (need 1000)","instance":"/api/tasks/87367cb9-f950-4bba-969f-f581a67a7cf1/status"}
+  ok  cannot start a task whose prerequisite stock is missing (HTTP 409)
+  $ POST http://localhost:41805/api/tasks/a723ad9f-3372-4838-8c61-606368ee6595/links  {"refType":"ITEM","refId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","refMeta":"{\"note\":\"raw material\"}"}
+    -> 201 {"id":"d75094db-559e-4139-855a-02ec4ebfac63","taskId":"a723ad9f-3372-4838-8c61-606368ee6595","refType":"ITEM","refId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","refMeta":"{\"note\":\"raw material\"}","createdAt":"2026-10-19T23:45:53.969298573Z","updatedAt":"2026-10-19T23:45:53.969298573Z"}
+  ok  link the task to the steel item (jsonb meta) (HTTP 201)
+  $ PATCH http://localhost:41805/api/tasks/a723ad9f-3372-4838-8c61-606368ee6595/status  {"status":"DONE"}
+    -> 200 {"id":"a723ad9f-3372-4838-8c61-606368ee6595","title":"Cut steel 179245354922562","description":null,"status":"DONE","priority":"HIGH","dueAt":null,"prerequisiteItemId":"098f4c42-7ae9-44cb-a8ca-5db8983ff33f","prerequisiteItemQuantity":20.000000,"assigneeUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdAt":"2026-10-19T23:45:53.519437Z","updatedAt":"2026-10-19T23:45:53.998306356Z","completedAt":"2026-10-19T23:45:53.996274223Z","links":[
+  ok  complete the task (HTTP 200)
+  $ GET http://localhost:41806/api/notifications?status=UNREAD&size=50
+    -> 200 {"content":[{"id":"80febc7b-9584-421a-a7b6-d61aa666ac34","title":"Document uploaded","content":"Your ITEM upload 5f91c2a5-4eb5-4194-965e-85fe23b2a4c4 is available.","type":"DOCUMENT_UPLOADED","status":"UNREAD","recipientUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"00000000-0000-0000-0000-000000000000","createdAt":"2026-10-19T23:45:51.861144Z","updatedAt":"2026-10-19T23:45:51.861144Z","readAt":null,"links":[{"id":"6723d574-09cc-4b90-9bd7-01f5ff258441","notificationId":"80febc
+  ok  RabbitMQ delivered task.completed: notification-service created a TASK_COMPLETED notification
+  $ PATCH http://localhost:41806/api/notifications/ee1ad3c0-fde5-42ec-a481-fe0dfa0a63d3/read  {"read":true}
+    -> 200 {"id":"ee1ad3c0-fde5-42ec-a481-fe0dfa0a63d3","title":"Task completed: Cut steel 179245354922562","content":"Task \"Cut steel 179245354922562\" has been marked as done.","type":"TASK_COMPLETED","status":"READ","recipientUserId":"7b923b56-9891-48e4-a932-18ec51ebf9c7","createdByUserId":"00000000-0000-0000-0000-000000000000","createdAt":"2026-10-19T23:45:54.010992Z","updatedAt":"2026-10-19T23:45:54.082749725Z","readAt":"2026-10-19T23:45:54.080442889Z","links":[{"id":"38d3de87-126f-4c6c-a704-5cd9f621
+  ok  mark the notification as read
+  $ GET http://localhost:41806/api/notifications/ee1ad3c0-fde5-42ec-a481-fe0dfa0a63d3
+    -> 403 {"type":"about:blank","title":"Forbidden","status":403,"detail":"Not your notification","instance":"/api/notifications/ee1ad3c0-fde5-42ec-a481-fe0dfa0a63d3"}
+  ok  another user cannot read the notification (HTTP 403)
+
+== 8. Logout revokes a token; OpenAPI is published by every service
+  $ POST http://localhost:41801/auth/login  {"email":"bob-179245354922562@erp.test","password":"[REDACTED]"}
+    -> 200 {"accessToken":"[REDACTED]"}
+  $ GET http://localhost:41801/api/users/me
+    -> 200 {"id":"508a3251-8674-4ae1-8a31-20a846547637","name":"Bob","email":"bob-179245354922562@erp.test","active":true,"createdAt":"2026-10-19T23:45:50.361749Z","updatedAt":"2026-10-19T23:45:50.361759Z","roles":["USER"]}
+  ok  fresh token works (HTTP 200)
+  $ POST http://localhost:41801/auth/logout
+    -> 204 
+  ok  logout (HTTP 204)
+  $ GET http://localhost:41801/api/users/me
+    -> 401 
+  ok  revoked token is rejected by user-service (HTTP 401)
+  $ GET http://localhost:41801/v3/api-docs
+    -> 200 {"openapi":"3.1.0","info":{"title":"user-service","description":"Users, roles and JWT issuing (login, JWKS). Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"tags":[{"name":"Users","description":"Account management. ADMIN and HR manage accounts; HR cannot touch ADMINs."},{"name":"Authentication","description":"Obtain and revoke access
+  ok  user-service serves /v3/api-docs (HTTP 200)
+  ok  user-service documents its endpoints
+  $ GET http://localhost:41801/swagger-ui/index.html
+    -> 200 [non-JSON response]
+  ok  user-service serves Swagger UI (HTTP 200)
+  $ GET http://localhost:41802/v3/api-docs
+    -> 200 {"openapi":"3.1.0","info":{"title":"item-service","description":"Items, units of measure, BOMs, documents (MinIO) and customer orders. Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"tags":[{"name":"BOMs","description":"Bills of materials: DRAFT -> ACTIVE -> OBSOLETE, one ACTIVE per product revision"},{"name":"Orders","description":"
+  ok  item-service serves /v3/api-docs (HTTP 200)
+  ok  item-service documents its endpoints
+  $ GET http://localhost:41802/swagger-ui/index.html
+    -> 200 [non-JSON response]
+  ok  item-service serves Swagger UI (HTTP 200)
+  $ GET http://localhost:41803/v3/api-docs
+    -> 200 {"openapi":"3.1.0","info":{"title":"inventory-service","description":"Stock levels and inventory movements. Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"tags":[{"name":"Inventory","description":"Stock levels and stock movements"}],"paths":{"/api/inventory/stocks/{itemId}/transactions":{"post":{"tags":["Inventory"],"summary":"Recor
+  ok  inventory-service serves /v3/api-docs (HTTP 200)
+  ok  inventory-service documents its endpoints
+  $ GET http://localhost:41803/swagger-ui/index.html
+    -> 200 [non-JSON response]
+  ok  inventory-service serves Swagger UI (HTTP 200)
+  $ GET http://localhost:41805/v3/api-docs
+    -> 200 {"openapi":"3.1.0","info":{"title":"task-service","description":"Tasks with stock prerequisites and links to users, items, orders and documents. Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"paths":{"/api/tasks":{"get":{"tags":["task-controller"],"operationId":"list","parameters":[{"name":"assignee","in":"query","required":false,"s
+  ok  task-service serves /v3/api-docs (HTTP 200)
+  ok  task-service documents its endpoints
+  $ GET http://localhost:41805/swagger-ui/index.html
+    -> 200 [non-JSON response]
+  ok  task-service serves Swagger UI (HTTP 200)
+  $ GET http://localhost:41806/v3/api-docs
+    -> 200 {"openapi":"3.1.0","info":{"title":"notification-service","description":"Per-user notifications, created via REST or from RabbitMQ events. Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"paths":{"/api/notifications":{"get":{"tags":["notification-controller"],"operationId":"listMine","parameters":[{"name":"page","in":"query","descript
+  ok  notification-service serves /v3/api-docs (HTTP 200)
+  ok  notification-service documents its endpoints
+  $ GET http://localhost:41806/swagger-ui/index.html
+    -> 200 [non-JSON response]
+  ok  notification-service serves Swagger UI (HTTP 200)
+
+SMOKE TEST PASSED (83 checks)
