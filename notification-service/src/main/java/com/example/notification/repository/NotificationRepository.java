@@ -9,5 +9,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface NotificationRepository extends JpaRepository<Notification, UUID> {
     Page<Notification> findByRecipientUserId(UUID recipientUserId, Pageable pageable);
     Page<Notification> findByRecipientUserIdAndStatus(UUID recipientUserId, Notification.Status status, Pageable pageable);
-}
 
+    boolean existsByDedupeKey(String dedupeKey);
+}

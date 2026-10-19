@@ -35,6 +35,9 @@ public class Notification {
     @Column(name = "created_by_user_id", nullable = false)
     private UUID createdByUserId;
 
+    @Column(name = "dedupe_key")
+    private String dedupeKey;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -74,6 +77,14 @@ public class Notification {
     public void setRecipientUserId(UUID recipientUserId) { this.recipientUserId = recipientUserId; }
     public UUID getCreatedByUserId() { return createdByUserId; }
     public void setCreatedByUserId(UUID createdByUserId) { this.createdByUserId = createdByUserId; }
+    public String getDedupeKey() {
+        return dedupeKey;
+    }
+
+    public void setDedupeKey(String dedupeKey) {
+        this.dedupeKey = dedupeKey;
+    }
+
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(OffsetDateTime createdAt) { this.createdAt = createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }

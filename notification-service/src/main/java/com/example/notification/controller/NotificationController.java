@@ -8,6 +8,7 @@ import com.example.notification.dto.NotificationLinkDto;
 import com.example.notification.service.NotificationService;
 import jakarta.validation.Valid;
 import java.util.UUID;
+import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
@@ -45,7 +46,7 @@ public class NotificationController {
     }
 
     @GetMapping
-    public Page<NotificationDto> listMine(@PageableDefault(size = 20) Pageable pageable,
+    public Page<NotificationDto> listMine(@ParameterObject @PageableDefault(size = 20) Pageable pageable,
             @RequestParam(name = "status", required = false) String status) {
         return notificationService.listMine(pageable, status);
     }

@@ -129,7 +129,7 @@ public class NotificationServiceImpl implements NotificationService {
     }
 
     private UUID currentUserUuid() {
-        return UUID.fromString(currentUserProvider.getCurrentUserId());
+        return currentUserProvider.getCurrentUserId();
     }
 
     private Status parseStatus(String status) {

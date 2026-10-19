@@ -1,6 +1,8 @@
 package com.example.notification.service;
 
-public interface CurrentUserProvider {
-    String getCurrentUserId();
-}
+import java.util.UUID;
 
+public interface CurrentUserProvider {
+    /** The authenticated caller's user id (the {@code uid} claim of the access token). */
+    UUID getCurrentUserId();
+}
