@@ -1,0 +1,231 @@
+# Whole ERP system: infrastructure + five Spring Boot services.
+#   cp .env.example .env && docker compose up --build
+name: pu-erp
+
+x-service: &service
+  restart: "no"
+  mem_limit: 768m
+  memswap_limit: 768m
+  cpus: 2
+  networks: [erp]
+  healthcheck:
+    test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/readiness"]
+    interval: 10s
+    timeout: 5s
+    retries: 12
+    start_period: 40s
+
+x-service-env: &service-env
+  JAVA_TOOL_OPTIONS: -Xmx512m -XX:+ExitOnOutOfMemoryError
+  SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:?copy .env.example to .env}
+  SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_USER: ${RABBITMQ_USER:?copy .env.example to .env}
+  RABBITMQ_PASSWORD: ${RABBITMQ_PASSWORD:?copy .env.example to .env}
+  # every service validates tokens against user-service's published keys
+  JWT_JWK_SET_URI: http://auth-service:8080/.well-known/jwks.json
+  JWT_ISSUER: http://auth-service:8080
+
+services:
+  postgres:
+    container_name: pu-erp-postgres
+    image: postgres:16-alpine
+    restart: "no"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 2
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?copy .env.example to .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-41432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [erp]
+
+  redis:
+    container_name: pu-erp-redis
+    image: redis:7-alpine
+    restart: "no"
+    mem_limit: 128m
+    memswap_limit: 128m
+    cpus: 2
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks: [erp]
+
+  rabbitmq:
+    container_name: pu-erp-rabbitmq
+    image: rabbitmq:3.13-management-alpine
+    restart: "no"
+    mem_limit: 768m
+    memswap_limit: 768m
+    cpus: 2
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?copy .env.example to .env}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?copy .env.example to .env}
+    ports:
+      - "127.0.0.1:${RABBITMQ_PORT:-41672}:5672"
+      - "127.0.0.1:${RABBITMQ_UI_PORT:-41673}:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+    networks: [erp]
+
+  # Digest-pinned MinIO, also used by the integration tests.
+  minio:
+    container_name: pu-erp-minio
+    image: cgr.dev/chainguard/minio@sha256:2915cb406f38ed6ff9634de0a3e4a9423e2dda06a6f1aca18f8c968aa37a01f6
+    restart: "no"
+    mem_limit: 512m
+    memswap_limit: 512m
+    cpus: 2
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?copy .env.example to .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?copy .env.example to .env}
+    ports:
+      # Clients use this port directly for presigned upload/download URLs (see MINIO_PUBLIC_ENDPOINT below).
+      - "127.0.0.1:${MINIO_API_PORT:-41900}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-41901}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      # the image is minimal (no curl): speak HTTP through bash's /dev/tcp
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000; printf 'GET /minio/health/live HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [erp]
+
+  auth-service:
+    container_name: pu-erp-auth-service
+    image: pu-erp-auth-service:portfolio-upgrade
+    <<: *service
+    build:
+      context: ..
+      args:
+        SERVICE: user-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment:
+      <<: *service-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/authdb
+      SPRING_DATA_REDIS_HOST: redis
+      ERP_ADMIN_EMAIL: ${ERP_ADMIN_EMAIL:?copy .env.example to .env}
+      ERP_ADMIN_PASSWORD: ${ERP_ADMIN_PASSWORD:?copy .env.example to .env}
+      AUTH_KEYSTORE_LOCATION: ${AUTH_KEYSTORE_LOCATION:-}
+      AUTH_KEYSTORE_PASSWORD: ${AUTH_KEYSTORE_PASSWORD:-}
+      AUTH_KEY_ALIAS: ${AUTH_KEY_ALIAS:-auth-rsa}
+      AUTH_KEY_PASSWORD: ${AUTH_KEY_PASSWORD:-}
+    ports:
+      - "127.0.0.1:${USER_SERVICE_PORT:-41801}:8080"
+
+  item-service:
+    container_name: pu-erp-item-service
+    image: pu-erp-item-service:portfolio-upgrade
+    <<: *service
+    build:
+      context: ..
+      args:
+        SERVICE: item-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      minio: {condition: service_healthy}
+      auth-service: {condition: service_healthy}
+    environment:
+      <<: *service-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/itemdb
+      MINIO_ENDPOINT: http://minio:9000
+      # what clients (curl/browser on the host) can reach; presigned URLs are signed for this address
+      MINIO_PUBLIC_ENDPOINT: http://localhost:${MINIO_API_PORT:-41900}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      MINIO_BUCKET: ${MINIO_BUCKET:-erp-assets}
+      INVENTORY_SERVICE_URL: http://inventory-service:8080
+    ports:
+      - "127.0.0.1:${ITEM_SERVICE_PORT:-41802}:8080"
+
+  inventory-service:
+    container_name: pu-erp-inventory-service
+    image: pu-erp-inventory-service:portfolio-upgrade
+    <<: *service
+    build:
+      context: ..
+      args:
+        SERVICE: inventory-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      auth-service: {condition: service_healthy}
+    environment:
+      <<: *service-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/inventorydb
+    ports:
+      - "127.0.0.1:${INVENTORY_SERVICE_PORT:-41803}:8080"
+
+  task-service:
+    container_name: pu-erp-task-service
+    image: pu-erp-task-service:portfolio-upgrade
+    <<: *service
+    build:
+      context: ..
+      args:
+        SERVICE: task-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      auth-service: {condition: service_healthy}
+    environment:
+      <<: *service-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/taskdb
+      USER_SERVICE_URL: http://auth-service:8080
+      ITEM_SERVICE_URL: http://item-service:8080
+      INVENTORY_SERVICE_URL: http://inventory-service:8080
+    ports:
+      - "127.0.0.1:${TASK_SERVICE_PORT:-41805}:8080"
+
+  notification-service:
+    container_name: pu-erp-notification-service
+    image: pu-erp-notification-service:portfolio-upgrade
+    <<: *service
+    build:
+      context: ..
+      args:
+        SERVICE: notification-service
+    depends_on:
+      postgres: {condition: service_healthy}
+      rabbitmq: {condition: service_healthy}
+      auth-service: {condition: service_healthy}
+    environment:
+      <<: *service-env
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/notificationdb
+    ports:
+      - "127.0.0.1:${NOTIFICATION_SERVICE_PORT:-41806}:8080"
+
+volumes:
+  postgres_data:
+    name: pu-erp-postgres-data
+  rabbitmq_data:
+    name: pu-erp-rabbitmq-data
+  minio_data:
+    name: pu-erp-minio-data
+
+networks:
+  erp:
+    name: pu-erp-network

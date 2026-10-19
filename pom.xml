@@ -137,10 +137,29 @@
       </plugins>
     </pluginManagement>
     <plugins>
-      <!-- Unit tests (*Test) run in surefire, integration tests (*IT, Testcontainers) in failsafe during `verify`. -->
+      <!-- Unit tests (*Test) run in surefire, integration tests (*IT, Testcontainers) in failsafe during `verify`.
+           One small forked JVM per module keeps memory predictable. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <forkCount>1</forkCount>
+          <argLine>-Xmx512m</argLine>
+        </configuration>
+      </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <!-- Spring closes the managed containers; Testcontainers also installs a JVM shutdown hook.
+               Avoid auxiliary containers outside our naming/resource policy. -->
+          <environmentVariables>
+            <TESTCONTAINERS_RYUK_DISABLED>true</TESTCONTAINERS_RYUK_DISABLED>
+            <TESTCONTAINERS_CHECKS_DISABLE>true</TESTCONTAINERS_CHECKS_DISABLE>
+          </environmentVariables>
+          <forkCount>1</forkCount>
+          <argLine>-Xmx512m</argLine>
+        </configuration>
         <executions>
           <execution>
             <goals>

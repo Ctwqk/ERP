@@ -22,8 +22,8 @@ import org.testcontainers.utility.DockerImageName;
 @TestConfiguration(proxyBeanMethods = false)
 public class ContainersConfig {
 
-    /** Docker Hub no longer serves minio/minio, so the Chainguard build is used (also in docker-compose.yml). */
-    static final String MINIO_IMAGE = "cgr.dev/chainguard/minio:latest";
+    /** The same digest-pinned MinIO build as the local Compose stack. */
+    static final String MINIO_IMAGE = "cgr.dev/chainguard/minio@sha256:2915cb406f38ed6ff9634de0a3e4a9423e2dda06a6f1aca18f8c968aa37a01f6";
 
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
     private static final RabbitMQContainer RABBIT = new RabbitMQContainer("rabbitmq:3.13-management-alpine");
