@@ -21,10 +21,10 @@ Passwords, access tokens and presigned URLs are redacted; response bodies are tr
     -> 401 {"type":"about:blank","title":"Unauthorized","status":401,"detail":"Bad credentials","instance":"/auth/login"}
   ok  wrong password is rejected (HTTP 401)
   $ GET http://localhost:41802/api/items
-    -> 401 
+    -> 401
   ok  item-service rejects requests without a token (HTTP 401)
   $ GET http://localhost:41802/api/items
-    -> 401 
+    -> 401
   ok  item-service rejects a forged token (HTTP 401)
   $ GET http://localhost:41802/api/items
     -> 200 {"content":[],"pageable":{"pageNumber":0,"pageSize":20,"sort":{"empty":true,"sorted":false,"unsorted":true},"offset":0,"paged":true,"unpaged":false},"last":true,"totalPages":0,"totalElements":0,"first":true,"size":20,"number":0,"sort":{"empty":true,"sorted":false,"unsorted":true},"numberOfElements":0,"empty":true}
@@ -38,7 +38,7 @@ Passwords, access tokens and presigned URLs are redacted; response bodies are tr
   $ POST http://localhost:41801/auth/login  {"email":"bob-179245354922562@erp.test","password":"[REDACTED]"}
     -> 200 {"accessToken":"[REDACTED]"}
   $ GET http://localhost:41801/api/users
-    -> 403 
+    -> 403
   ok  ordinary user cannot list users (HTTP 403)
 
 == 3. Items, units of measure and a BOM (item-service)
@@ -206,10 +206,10 @@ Passwords, access tokens and presigned URLs are redacted; response bodies are tr
     -> 200 {"id":"508a3251-8674-4ae1-8a31-20a846547637","name":"Bob","email":"bob-179245354922562@erp.test","active":true,"createdAt":"2026-10-19T23:45:50.361749Z","updatedAt":"2026-10-19T23:45:50.361759Z","roles":["USER"]}
   ok  fresh token works (HTTP 200)
   $ POST http://localhost:41801/auth/logout
-    -> 204 
+    -> 204
   ok  logout (HTTP 204)
   $ GET http://localhost:41801/api/users/me
-    -> 401 
+    -> 401
   ok  revoked token is rejected by user-service (HTTP 401)
   $ GET http://localhost:41801/v3/api-docs
     -> 200 {"openapi":"3.1.0","info":{"title":"user-service","description":"Users, roles and JWT issuing (login, JWKS). Authenticate with POST /auth/login on user-service and paste the access token into Authorize.","version":"v1"},"servers":[{"url":"[REDACTED]","description":"Generated server url"}],"security":[{"bearer-jwt":[]}],"tags":[{"name":"Users","description":"Account management. ADMIN and HR manage accounts; HR cannot touch ADMINs."},{"name":"Authentication","description":"Obtain and revoke access
