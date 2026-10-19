@@ -7,6 +7,7 @@ import com.example.inventory.dto.InventoryStockDto;
 import com.example.inventory.dto.InventoryTransactionDto;
 import com.example.inventory.repository.InventoryStockRepository;
 import com.example.inventory.repository.InventoryTransactionRepository;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -29,25 +30,24 @@ public class InventoryServiceImpl implements InventoryService {
     @Override
     @Transactional(readOnly = true)
     public InventoryStockDto getStockByItemId(UUID itemId) {
-        InventoryStock stock = stockRepo.findByItemId(itemId)
-                .orElseGet(() -> handleEmptyStock(itemId));
-        return new InventoryStockDto(stock);
+        return new InventoryStockDto(stockRepo.findByItemId(itemId).orElseThrow(() -> noStock(itemId)));
     }
 
     @Override
-    public InventoryStockDto recordTransaction(UUID itemId, UUID userId, TransactionType type, double quantity) {
+    public InventoryStockDto recordTransaction(UUID itemId, UUID userId, TransactionType type, BigDecimal quantity) {
         if (itemId == null || userId == null || type == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "itemId, userId, type are required");
         }
-        if (quantity <= 0) {
+        if (quantity == null || quantity.signum() <= 0) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "quantity must be > 0");
         }
 
-        InventoryStock stock = stockRepo.findByItemId(itemId)
-                .orElseGet(() -> handleEmptyStock(itemId));
+        if (type == TransactionType.IN) {
+            stockRepo.createIfAbsent(UUID.randomUUID(), itemId);
+        }
+        InventoryStock stock = stockRepo.findByItemIdForUpdate(itemId).orElseThrow(() -> noStock(itemId));
 
-        double newQty = computeNewQuantity(stock.getQuantity(), type, quantity);
-        stock.setQuantity(newQty);
+        stock.setQuantity(computeNewQuantity(stock.getQuantity(), type, quantity));
         stockRepo.save(stock);
 
         InventoryTransaction tx = new InventoryTransaction();
@@ -69,17 +69,19 @@ public class InventoryServiceImpl implements InventoryService {
                 .toList();
     }
 
-    private InventoryStock handleEmptyStock(UUID itemId) {
-        throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Stock not found for item " + itemId);
+    private static ResponseStatusException noStock(UUID itemId) {
+        return new ResponseStatusException(HttpStatus.NOT_FOUND, "Stock not found for item " + itemId);
     }
 
-    private double computeNewQuantity(double current, TransactionType type, double delta) {
+    static BigDecimal computeNewQuantity(BigDecimal current, TransactionType type, BigDecimal delta) {
         return switch (type) {
-            case IN -> current + delta;
+            case IN -> current.add(delta);
             case OUT -> {
-                double next = current - delta;
-                if (next < 0) {
-                    throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Insufficient stock");
+                BigDecimal next = current.subtract(delta);
+                if (next.signum() < 0) {
+                    throw new ResponseStatusException(HttpStatus.CONFLICT,
+                            "Insufficient stock: available " + current.stripTrailingZeros().toPlainString()
+                                    + ", requested " + delta.stripTrailingZeros().toPlainString());
                 }
                 yield next;
             }

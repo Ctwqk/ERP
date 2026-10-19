@@ -1,6 +1,7 @@
 package com.example.inventory.domain;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -27,8 +28,8 @@ public class InventoryTransaction {
     @Column(name = "transaction_type", nullable = false, length = 8)
     private TransactionType transactionType;
 
-    @Column(name = "quantity", nullable = false)
-    private Double quantity;
+    @Column(name = "quantity", nullable = false, precision = 18, scale = 6)
+    private BigDecimal quantity;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
@@ -84,11 +85,11 @@ public class InventoryTransaction {
         this.transactionType = transactionType;
     }
 
-    public Double getQuantity() {
+    public BigDecimal getQuantity() {
         return quantity;
     }
 
-    public void setQuantity(Double quantity) {
+    public void setQuantity(BigDecimal quantity) {
         this.quantity = quantity;
     }
 

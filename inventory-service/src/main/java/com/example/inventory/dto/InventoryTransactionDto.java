@@ -2,6 +2,7 @@ package com.example.inventory.dto;
 
 import com.example.inventory.domain.InventoryTransaction;
 import com.example.inventory.domain.InventoryTransaction.TransactionType;
+import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 
@@ -10,7 +11,7 @@ public record InventoryTransactionDto(
         UUID stockId,
         UUID userId,
         TransactionType transactionType,
-        Double quantity,
+        BigDecimal quantity,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt) {
 
