@@ -1,6 +1,6 @@
 # ERP — manufacturing workflows across five services
 
-[![CI](https://github.com/Ctwqk/ERP/actions/workflows/ci.yml/badge.svg?branch=portfolio-upgrade)](https://github.com/Ctwqk/ERP/actions/workflows/ci.yml)
+[![CI](https://github.com/Ctwqk/ERP/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Ctwqk/ERP/actions/workflows/ci.yml)
 
 A Java 17 / Spring Boot ERP backend connecting bills of materials, stock movements, customer orders, document uploads, and tasks through authenticated HTTP APIs and RabbitMQ events.
 
@@ -74,7 +74,7 @@ BOM requirements are single-level: `net = product quantity × quantity per compo
 Prerequisites: JDK **17 or 21**, Docker Engine with Compose **2.20+** (Compose `include` support), Bash, curl, jq, and Python 3. Maven 3.9.9 is downloaded by the wrapper; an installed Maven 3.9 also works. Allow roughly 6 GiB for the local stack, plus build headroom. No Node installation is needed.
 
 ```bash
-git clone --branch portfolio-upgrade https://github.com/Ctwqk/ERP.git
+git clone https://github.com/Ctwqk/ERP.git
 cd ERP
 cp .env.example .env
 ./mvnw -B -ntp verify                 # unit tests + real container integration tests; produces all jars
@@ -200,4 +200,4 @@ Spring Security OAuth2 resource servers · Spring Data JPA/Hibernate · Flyway �
 - Presigned upload URLs remain usable until expiry; completed objects are not immutable. Document deletion spans SQL and object storage without a distributed transaction. Add object versioning, stronger file validation and reconciliation for production use.
 - Flyway migrations initialize **fresh databases**. There is no verified upgrade path from legacy hand-created schemas. Earlier demo imports have no reliable source-document record: recreate disposable demo data or reconcile those orders before re-importing old spreadsheets after migration V3.
 - The pinned Chainguard MinIO image makes the demo repeatable; update image digests and dependency versions deliberately with the same integration/smoke checks.
-- No license has been selected. The owner should choose one before inviting reuse.
+- Released under the [MIT License](LICENSE).
