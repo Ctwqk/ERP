@@ -77,17 +77,34 @@ public class ReadXlsx {
     }
 
     private static OrderItemRequest toItem(Row row) {
+        if (isEmptyRow(row)) {
+            return null;
+        }
         String itemIdStr = readString(row.getCell(0));
         String skuCode = readString(row.getCell(1));
         Integer quantity = readInt(row.getCell(2));
         Long unitPriceCents = readLong(row.getCell(3));
 
         if ((isBlank(itemIdStr) && isBlank(skuCode)) || quantity == null || unitPriceCents == null) {
-            // skip invalid or empty lines
-            return null;
+            throw new IllegalArgumentException("Row " + (row.getRowNum() + 1)
+                    + " requires item_id or sku_code, quantity, and unit_price_cents");
         }
         UUID itemId = parseUuid(itemIdStr);
         return new OrderItemRequest(itemId, skuCode, quantity, unitPriceCents);
+    }
+
+    private static boolean isEmptyRow(Row row) {
+        for (Cell cell : row) {
+            boolean blank = switch (cell.getCellType()) {
+                case BLANK -> true;
+                case STRING -> isBlank(cell.getStringCellValue());
+                default -> false;
+            };
+            if (!blank) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private static ExcelOrderRow toItemWithMeta(Row row) {
@@ -120,8 +137,9 @@ public class ReadXlsx {
             return null;
         return switch (cell.getCellType()) {
             case STRING -> cell.getStringCellValue();
-            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
-            default -> null;
+            case NUMERIC -> String.valueOf(readLong(cell));
+            case BLANK -> null;
+            default -> throw new IllegalArgumentException("Unsupported cell type at " + cell.getAddress());
         };
     }
 
@@ -129,7 +147,14 @@ public class ReadXlsx {
         if (cell == null)
             return null;
         return switch (cell.getCellType()) {
-            case NUMERIC -> (int) cell.getNumericCellValue();
+            case NUMERIC -> {
+                double value = cell.getNumericCellValue();
+                if (!Double.isFinite(value) || value != Math.rint(value)
+                        || value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
+                    throw new IllegalArgumentException("Expected a 32-bit integer at " + cell.getAddress());
+                }
+                yield (int) value;
+            }
             case STRING -> {
                 String s = cell.getStringCellValue();
                 if (isBlank(s))
@@ -144,7 +169,15 @@ public class ReadXlsx {
         if (cell == null)
             return null;
         return switch (cell.getCellType()) {
-            case NUMERIC -> (long) cell.getNumericCellValue();
+            case NUMERIC -> {
+                double value = cell.getNumericCellValue();
+                // Long.MAX_VALUE rounds up to 2^63 when converted to double.
+                if (!Double.isFinite(value) || value != Math.rint(value)
+                        || value < Long.MIN_VALUE || value >= 0x1p63) {
+                    throw new IllegalArgumentException("Expected a 64-bit integer at " + cell.getAddress());
+                }
+                yield (long) value;
+            }
             case STRING -> {
                 String s = cell.getStringCellValue();
                 if (isBlank(s))
@@ -158,11 +191,12 @@ public class ReadXlsx {
     private static UUID parseUuid(String s) {
         if (isBlank(s))
             return null;
-        try {
-            return UUID.fromString(s.trim());
-        } catch (IllegalArgumentException ex) {
-            return null;
+        String value = s.trim();
+        UUID id = UUID.fromString(value);
+        if (!id.toString().equalsIgnoreCase(value)) {
+            throw new IllegalArgumentException("Invalid UUID: " + value);
         }
+        return id;
     }
 
     private static boolean isBlank(String s) {
