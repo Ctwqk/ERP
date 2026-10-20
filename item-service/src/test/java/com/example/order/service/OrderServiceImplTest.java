@@ -255,14 +255,13 @@ class OrderServiceImplTest {
         d.setStatus(status);
         d.setBucket("b");
         d.setObjectKey("k");
-        when(documents.findById(d.getId())).thenReturn(Optional.of(d));
+        when(documents.findByIdForUpdate(d.getId())).thenReturn(Optional.of(d));
         return d;
     }
 
     @Test
     void importCreatesOrderForTheGivenUserAndLinksTheSourceDocument() {
         Document doc = orderDocument("po.xlsx", Document.Status.APPROVED);
-        when(links.findAllByDocumentId(doc.getId())).thenReturn(List.of());
         when(storage.open("b", "k")).thenReturn(new ByteArrayInputStream(
                 XlsxFixtures.orderBySku(new Object[] {"BOLT", 4, 100})));
         resolves(new ResolvedItem(bolt, "BOLT"));
@@ -293,12 +292,8 @@ class OrderServiceImplTest {
         existing.setUserId(ME);
         existing.setStatus(Status.NEW);
         existing.setTotalAmountCents(1L);
-        DocumentLink link = new DocumentLink();
-        link.setDocumentId(doc.getId());
-        link.setLinkId(existing.getId());
-        link.setLinkType(LinkType.ORDER);
-        when(links.findAllByDocumentId(doc.getId())).thenReturn(List.of(link));
-        when(orders.findById(existing.getId())).thenReturn(Optional.of(existing));
+        existing.setSourceDocumentId(doc.getId());
+        when(orders.findBySourceDocumentId(doc.getId())).thenReturn(Optional.of(existing));
 
         OrderDto dto = service.importOrderFromDocument(doc.getId(), ME);
 
@@ -323,7 +318,7 @@ class OrderServiceImplTest {
                 .satisfies(t -> assertStatus(t, HttpStatus.BAD_REQUEST));
 
         UUID missing = UUID.randomUUID();
-        when(documents.findById(missing)).thenReturn(Optional.empty());
+        when(documents.findByIdForUpdate(missing)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.importOrderFromDocument(missing, ME))
                 .satisfies(t -> assertStatus(t, HttpStatus.NOT_FOUND));
     }
@@ -331,7 +326,6 @@ class OrderServiceImplTest {
     @Test
     void corruptSpreadsheetIsABadRequest() {
         Document doc = orderDocument("po.xlsx", Document.Status.APPROVED);
-        when(links.findAllByDocumentId(doc.getId())).thenReturn(List.of());
         when(storage.open("b", "k")).thenReturn(new ByteArrayInputStream("not a workbook".getBytes()));
 
         assertThatThrownBy(() -> service.importOrderFromDocument(doc.getId(), ME))

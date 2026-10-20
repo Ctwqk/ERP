@@ -28,6 +28,10 @@ public class Order {
     @Column(name = "total_amount_cents", nullable = false)
     private Long totalAmountCents;
 
+    /** The spreadsheet that created this order; ordinary attachments do not establish import provenance. */
+    @Column(name = "source_document_id", unique = true)
+    private UUID sourceDocumentId;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt;
 
@@ -86,6 +90,14 @@ public class Order {
 
     public void setTotalAmountCents(Long totalAmountCents) {
         this.totalAmountCents = totalAmountCents;
+    }
+
+    public UUID getSourceDocumentId() {
+        return sourceDocumentId;
+    }
+
+    public void setSourceDocumentId(UUID sourceDocumentId) {
+        this.sourceDocumentId = sourceDocumentId;
     }
 
     public OffsetDateTime getCreatedAt() {

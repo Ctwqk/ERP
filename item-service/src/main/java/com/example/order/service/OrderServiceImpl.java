@@ -253,7 +253,7 @@ public class OrderServiceImpl implements OrderService {
 
     @Override
     public OrderDto importOrderFromDocument(UUID documentId, String userId) {
-        Document doc = documentRepository.findById(documentId)
+        Document doc = documentRepository.findByIdForUpdate(documentId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found"));
         if (!userId.equals(String.valueOf(doc.getCreatedByUserId()))) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the uploader can import this document");
@@ -267,12 +267,9 @@ public class OrderServiceImpl implements OrderService {
         if (doc.getStatus() != Document.Status.APPROVED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Document upload is not complete");
         }
-        // idempotent: a document that was already turned into an order (e.g. message redelivery) is not imported twice
-        Optional<Order> existing = documentLinkRepository.findAllByDocumentId(documentId).stream()
-                .filter(l -> l.getLinkType() == LinkType.ORDER)
-                .map(l -> orderRepository.findById(l.getLinkId()))
-                .flatMap(Optional::stream)
-                .findFirst();
+        // Only a recorded import counts as deduplication, never an ordinary attachment to another order.
+        // The document row lock makes the lookup and creation atomic for concurrent deliveries.
+        Optional<Order> existing = orderRepository.findBySourceDocumentId(documentId);
         if (existing.isPresent()) {
             if (!userId.equals(existing.get().getUserId())) {
                 throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your order");
@@ -291,7 +288,9 @@ public class OrderServiceImpl implements OrderService {
                     "Failed to import order from xlsx: " + e.getMessage(), e);
         }
         OrderDto created = createOrderFor(userId, data.orderRequest());
+        Order imported = find(created.id());
+        imported.setSourceDocumentId(documentId);
         link(created.id(), documentId, Purpose.REFERENCE);
-        return new OrderDto(find(created.id()), loadDocumentIds(created.id()));
+        return new OrderDto(imported, loadDocumentIds(created.id()));
     }
 }

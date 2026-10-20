@@ -1,7 +1,9 @@
 package com.example.document.repository;
 
 import com.example.document.domain.Document;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -12,6 +14,11 @@ import java.util.UUID;
 
 public interface DocumentRepository extends JpaRepository<Document, UUID> {
     Optional<Document> findByChecksumSha256AndRevision(String checksumSha256, String revision);
+
+    /** Serializes imports of the same source across HTTP requests and broker deliveries. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("select d from Document d where d.id = :id")
+    Optional<Document> findByIdForUpdate(@Param("id") UUID id);
 
     @Modifying(clearAutomatically = true)
     @Query(value = """
