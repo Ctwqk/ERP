@@ -4,7 +4,7 @@
 
 A Java 17 / Spring Boot ERP backend connecting bills of materials, stock movements, customer orders, document uploads, and tasks through authenticated HTTP APIs and RabbitMQ events.
 
-Verified locally: **155 tests passed** and **83 full-stack smoke checks passed** ([evidence](docs/verification.md)).
+Verified locally: **196 tests passed** and **83 full-stack smoke checks passed** ([evidence](docs/verification.md#independent-review-2026-10-19)).
 
 This is a runnable backend portfolio project. It has Swagger UIs, a real local token issuer, database migrations, business-rule tests, and an end-to-end script that exercises all five services. There is no separate frontend.
 
@@ -13,7 +13,7 @@ This is a runnable backend portfolio project. It has Swagger UIs, a real local t
 - **Catalog and BOMs:** items and units of measure, component quantities, scrap-adjusted material requirements, and a DRAFT → ACTIVE → OBSOLETE lifecycle. Active component lists are frozen.
 - **Inventory:** decimal quantities, first-receipt stock creation, an auditable IN/OUT ledger, and database row locks to prevent concurrent overdrafts.
 - **Orders:** SKU/id resolution, integer-cent totals with overflow checks, ownership checks, stock checks on confirmation, and automatic `.xlsx` import from an uploaded ORDER document.
-- **Documents:** direct-to-MinIO presigned uploads; completion verifies the stored size before publishing an event. Upload completion and order import belong to the uploader.
+- **Documents:** direct-to-MinIO presigned uploads; completion verifies the stored size before publishing an event. Upload completion and order import belong to the uploader; attaching uploads to an existing order requires its owner.
 - **Tasks:** assignee/reference validation through the other services, stock prerequisites, status transitions, and completion events.
 - **Notifications:** per-user inboxes consuming document and task events, with deterministic deduplication keys and read/unread state.
 - **Users/auth:** administrator bootstrap, BCrypt passwords, ADMIN/HR/USER rules, RSA-signed JWTs, public JWKS, and an auth-service logout blacklist in Redis.
@@ -133,7 +133,7 @@ curl -fsS http://localhost:41802/api/uoms -H "Authorization: Bearer $TOKEN" | jq
 
 Paste `TOKEN`'s value into Swagger's **Authorize** dialog (without the `Bearer ` prefix). The JWT's `uid` identifies the account, `sub` is the email, and `roles` contains `ROLE_`-prefixed authorities. `JWT_ISSUER=http://auth-service:8080` is the issuer identifier inside this local stack; browsers do not have to resolve it. Public keys come from user-service's `/.well-known/jwks.json` endpoint.
 
-By default the signing key is generated in memory. Restarting auth invalidates existing tokens; log in again. This is a development token issuer, not an OIDC authorization server: there is no authorization-code flow, discovery endpoint, refresh token, or client registration. Logout blacklisting is checked **only by user-service**; other services accept a previously issued token until expiry (default 60 minutes).
+By default the signing key is generated in memory. Restarting auth replaces the signing key; log in again. Other services may continue accepting old tokens while they retain the previous public key in their JWKS cache. This is a development token issuer, not an OIDC authorization server: there is no authorization-code flow, discovery endpoint, refresh token, or client registration. Logout blacklisting is checked **only by user-service**; other services accept a previously issued token until expiry (default 60 minutes).
 
 For a persistent development key, generate an RSA PKCS12 keystore with `keytool`, mount it read-only into `auth-service` using an ignored `docker-compose.override.yml`, and set `AUTH_KEYSTORE_LOCATION` to the container path plus `AUTH_KEYSTORE_PASSWORD`, `AUTH_KEY_ALIAS`, and optionally `AUTH_KEY_PASSWORD`. The container runs as UID/GID 10001, so the mounted file must be readable by that user. Never commit the keystore, override, or passwords.
 
@@ -149,9 +149,9 @@ For a persistent development key, generate an RSA PKCS12 keystore with `keytool`
 | Tasks | `/api/tasks`, `PATCH /api/tasks/{id}/status`, `/{id}/links` | OPEN → IN_PROGRESS → DONE; cancel from OPEN/IN_PROGRESS |
 | Notifications | `/api/notifications`, `PATCH /api/notifications/{id}/read` | recipient-only access and event deduplication |
 
-The ledger route is `GET /api/inventory/stocks/{stockId}/transactions`; it uses the **stock row ID**, whereas stock lookup and movement creation use the **item ID**. The document upload paths retain the original `images` naming but accept other file types. ORDER upload `linkId` can be a batch UUID before an order exists. Raw document metadata create/update/delete endpoints are ADMIN-only; catalog, task, and document reads are shared across authenticated users.
+The ledger route is `GET /api/inventory/stocks/{stockId}/transactions`; it uses the **stock row ID**, whereas stock lookup and movement creation use the **item ID**. The document upload paths retain the original `images` naming but accept other file types. ORDER upload `linkId` can be a fresh batch UUID before an order exists; an existing order ID requires the caller to own that order. Raw document metadata create/update/delete endpoints are ADMIN-only; catalog, task, and document reads are shared across authenticated users.
 
-For spreadsheet imports, use columns `item_id`, `sku_code`, `quantity`, `unit_price_cents`, and optional `document_ids`. Supply an item ID or SKU; quantities are positive integers. The helper creates a real workbook with Python's standard library:
+For spreadsheet imports, use columns `item_id`, `sku_code`, `quantity`, `unit_price_cents`, and optional `document_ids`. Supply an item ID or SKU; quantities are positive integers and prices are whole cents. Empty rows are ignored; incomplete rows, malformed IDs, formulas, fractional numbers and numeric overflow reject the entire import. Use text cells for large integer values that Excel cannot represent exactly. The helper creates a real workbook with Python's standard library:
 
 ```bash
 python3 scripts/make_order_xlsx.py order.xlsx 'BOLT:4:250' 'STEEL:10:15'
@@ -195,9 +195,9 @@ Spring Security OAuth2 resource servers · Spring Data JPA/Hibernate · Flyway �
 - This is a local, single-organization demonstration. Catalog, inventory and task endpoints have broad authenticated access; there is no tenant isolation or complete departmental permission model. Documents are shared within that organization, while orders and notifications are private to their users.
 - The five databases share one PostgreSQL process and development database credentials. Production would need per-service credentials, TLS, external secrets, backups and operational monitoring.
 - Event publication occurs **after database commit**, without a transactional outbox or publisher-confirm recovery. A crash in that gap can lose an event. Consumers retry three times; exhausted messages are discarded, with no dead-letter recovery UI. Add an outbox and dead-letter queues before relying on this operationally.
-- Notification deduplication has a database unique key. Spreadsheet import deduplicates ordinary redelivery, but concurrent imports need stronger database-backed serialization. Inventory movements have row locks; other workflows do not claim full concurrent-update protection.
+- Notification deduplication has a database unique key. Spreadsheet imports lock the source document and record a unique source-document ID on the resulting order, so concurrent imports return the same order. Ordinary attachments do not count as import provenance. Inventory movements have row locks; other workflows do not claim full concurrent-update protection.
 - Stock checks are advisory, not reservations. BOM explosion is one level with no unit conversions. Manufacturing-order entities are retained but a full production-planning workflow is unfinished.
 - Presigned upload URLs remain usable until expiry; completed objects are not immutable. Document deletion spans SQL and object storage without a distributed transaction. Add object versioning, stronger file validation and reconciliation for production use.
-- Flyway migrations initialize **fresh databases**. There is no verified upgrade path from legacy hand-created schemas.
+- Flyway migrations initialize **fresh databases**. There is no verified upgrade path from legacy hand-created schemas. Earlier demo imports have no reliable source-document record: recreate disposable demo data or reconcile those orders before re-importing old spreadsheets after migration V3.
 - The pinned Chainguard MinIO image makes the demo repeatable; update image digests and dependency versions deliberately with the same integration/smoke checks.
 - No license has been selected. The owner should choose one before inviting reuse.
