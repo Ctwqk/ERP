@@ -21,6 +21,8 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
+import org.springframework.amqp.core.Message;
+import org.springframework.amqp.core.MessageProperties;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -100,13 +102,39 @@ class NotificationFlowIT {
         rabbit.convertAndSend(EventTopology.TASK_EXCHANGE, EventTopology.TASK_COMPLETED_KEY, event);
         rabbit.convertAndSend(EventTopology.TASK_EXCHANGE, EventTopology.TASK_COMPLETED_KEY, event);
 
+        // The listener has one consumer. A later marker proves both earlier deliveries have finished;
+        // observing the first notification alone could pass before the duplicate was processed.
+        UUID markerRecipient = UUID.randomUUID();
+        rabbit.convertAndSend(EventTopology.TASK_EXCHANGE, EventTopology.TASK_COMPLETED_KEY,
+                new TaskCompletedEvent(UUID.randomUUID(), "After duplicate", markerRecipient, null,
+                        OffsetDateTime.now()));
         await().atMost(Duration.ofSeconds(20)).untilAsserted(() -> {
+            assertThat(notifications.findByRecipientUserId(markerRecipient, Pageable.unpaged()).getContent()).hasSize(1);
             assertThat(notifications.findByRecipientUserId(creator, Pageable.unpaged()).getContent()).hasSize(1);
             assertThat(notifications.findByRecipientUserId(assignee, Pageable.unpaged()).getContent()).hasSize(1);
         });
         Notification n = notifications.findByRecipientUserId(creator, Pageable.unpaged()).getContent().get(0);
         assertThat(n.getTitle()).isEqualTo("Task completed: Calibrate press");
         assertThat(n.getType()).isEqualTo("TASK_COMPLETED");
+    }
+
+    @Test
+    void malformedMessagesDoNotBlockLaterNotifications() {
+        MessageProperties properties = new MessageProperties();
+        properties.setContentType(MessageProperties.CONTENT_TYPE_JSON);
+        rabbit.send(EventTopology.TASK_EXCHANGE, EventTopology.TASK_COMPLETED_KEY,
+                new Message("{broken-json".getBytes(java.nio.charset.StandardCharsets.UTF_8), properties));
+        UUID recipient = UUID.randomUUID();
+        UUID taskId = UUID.randomUUID();
+        rabbit.convertAndSend(EventTopology.TASK_EXCHANGE, EventTopology.TASK_COMPLETED_KEY,
+                new TaskCompletedEvent(taskId, "After poison message", recipient, null, OffsetDateTime.now()));
+
+        await().atMost(Duration.ofSeconds(20)).untilAsserted(() ->
+                assertThat(notifications.findByRecipientUserId(recipient, Pageable.unpaged()).getContent())
+                        .singleElement().satisfies(n -> {
+                            assertThat(n.getTitle()).isEqualTo("Task completed: After poison message");
+                            assertThat(n.getDedupeKey()).isEqualTo("task-completed:" + taskId + ":" + recipient);
+                        }));
     }
 
     @Test
