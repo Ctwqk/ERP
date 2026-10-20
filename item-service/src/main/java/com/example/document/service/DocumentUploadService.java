@@ -17,6 +17,7 @@ import com.example.document.rabbitmq.DocumentEventPublisher;
 import com.example.document.repository.DocumentLinkRepository;
 import com.example.document.repository.DocumentRepository;
 import com.example.item.repository.ItemRepository;
+import com.example.order.repository.OrderRepository;
 import io.minio.StatObjectResponse;
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -41,20 +42,25 @@ public class DocumentUploadService {
     private final DocumentRepository docRepo;
     private final DocumentLinkRepository docLinkRepo;
     private final ItemRepository itemRepo;
+    private final OrderRepository orderRepo;
     private final DocumentEventPublisher documentEventPublisher;
 
     public DocumentUploadService(DocumentStorage storage, DocumentRepository docRepo,
-            DocumentLinkRepository docLinkRepo, ItemRepository itemRepo,
+            DocumentLinkRepository docLinkRepo, ItemRepository itemRepo, OrderRepository orderRepo,
             DocumentEventPublisher documentEventPublisher) {
         this.storage = storage;
         this.docRepo = docRepo;
         this.docLinkRepo = docLinkRepo;
         this.itemRepo = itemRepo;
+        this.orderRepo = orderRepo;
         this.documentEventPublisher = documentEventPublisher;
     }
 
     @Transactional
     public InitUploadResponse init(UUID linkId, InitUploadRequest req, UUID userId) {
+        if (userId == null) {
+            throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Missing user id");
+        }
         if (req.sizeBytes() == null || req.sizeBytes() <= 0 || req.sizeBytes() > MAX_SIZE_BYTES) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                     "sizeBytes must be between 1 and " + MAX_SIZE_BYTES);
@@ -62,6 +68,14 @@ public class DocumentUploadService {
         LinkType linkType = resolveLinkType(req.linkType());
         if (linkType == LinkType.ITEM && !itemRepo.existsById(linkId)) {
             throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Item not found");
+        }
+        if (linkType == LinkType.ORDER) {
+            // A missing order is allowed: new imports use a batch UUID before an order exists.
+            orderRepo.findById(linkId).ifPresent(order -> {
+                if (!userId.toString().equals(order.getUserId())) {
+                    throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Not your order");
+                }
+            });
         }
         storage.ensureBucket();
 

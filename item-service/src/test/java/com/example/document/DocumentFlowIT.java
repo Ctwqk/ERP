@@ -81,6 +81,31 @@ class DocumentFlowIT {
     }
 
     @Test
+    void onlyTheOrderOwnerCanInitializeAnUploadLinkedToAnExistingOrder() throws Exception {
+        UUID alice = UUID.randomUUID();
+        UUID bob = UUID.randomUUID();
+        createItem(alice, "DOC-ORDER-OWNER");
+        String order = mvc.perform(post("/api/orders").with(as(alice)).contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"items\":[{\"sku\":\"DOC-ORDER-OWNER\",\"quantity\":1,\"unitPriceCents\":10}]}"))
+                .andExpect(status().isCreated()).andReturn().getResponse().getContentAsString();
+        String orderId = JsonPath.read(order, "$.id");
+
+        mvc.perform(post("/api/documents/{id}/images:init", orderId).with(as(bob))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"filename\":\"drawing.pdf\",\"sizeBytes\":10,\"linkType\":\"ORDER\"}"))
+                .andExpect(status().isForbidden());
+        mvc.perform(get("/api/orders/{id}", orderId).with(as(alice)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.documentIds").isEmpty());
+
+        String init = initUpload(alice, UUID.fromString(orderId), "drawing.pdf", 10, "ORDER");
+        String documentId = JsonPath.read(init, "$.documentId");
+        mvc.perform(get("/api/orders/{id}", orderId).with(as(alice)))
+                .andExpect(jsonPath("$.documentIds.length()").value(1))
+                .andExpect(jsonPath("$.documentIds[0]").value(documentId));
+    }
+
+    @Test
     void uploadedOrderSpreadsheetBecomesAnOrderForTheUploader() throws Exception {
         UUID uploader = UUID.randomUUID();
         createItem(uploader, "IMP-BOLT");

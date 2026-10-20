@@ -8,6 +8,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.example.common.events.DocumentUploadEvent;
@@ -25,6 +26,8 @@ import com.example.document.repository.DocumentRepository;
 import com.example.document.service.DocumentStorage;
 import com.example.document.service.DocumentUploadService;
 import com.example.item.repository.ItemRepository;
+import com.example.order.domain.Order;
+import com.example.order.repository.OrderRepository;
 import io.minio.StatObjectResponse;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +36,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
@@ -48,13 +52,13 @@ class DocumentUploadServiceTest {
     @Mock DocumentRepository docs;
     @Mock DocumentLinkRepository links;
     @Mock ItemRepository items;
+    @Mock OrderRepository orders;
     @Mock DocumentEventPublisher publisher;
 
-    DocumentUploadService service;
+    @InjectMocks DocumentUploadService service;
 
     @BeforeEach
     void setUp() {
-        service = new DocumentUploadService(storage, docs, links, items, publisher);
         lenient().when(storage.bucket()).thenReturn("erp-assets");
         lenient().when(docs.save(any(Document.class))).thenAnswer(inv -> {
             Document d = inv.getArgument(0);
@@ -101,13 +105,51 @@ class DocumentUploadServiceTest {
     }
 
     @Test
-    void orderUploadsDefaultToOrderDocType() {
+    void initAcceptsFreshOrderBatchAndDefaultsToOrderDocType() {
         service.init(LINK, request("order", 10L, null), USER);
 
         ArgumentCaptor<Document> doc = ArgumentCaptor.forClass(Document.class);
         verify(docs).save(doc.capture());
         assertThat(doc.getValue().getDocType()).isEqualTo(DocType.ORDER);
         assertThat(doc.getValue().getObjectKey()).startsWith("orders/" + LINK + "/");
+    }
+
+    @Test
+    void initAcceptsAnExistingOrderOwnedByTheUploader() {
+        Order order = new Order();
+        order.setId(LINK);
+        order.setUserId(USER.toString());
+        when(orders.findById(LINK)).thenReturn(Optional.of(order));
+
+        InitUploadResponse response = service.init(LINK, request("ORDER", 10L, null), USER);
+
+        assertThat(response.uploadUrl()).isEqualTo("http://minio/put-url");
+        ArgumentCaptor<DocumentLink> link = ArgumentCaptor.forClass(DocumentLink.class);
+        verify(links).save(link.capture());
+        assertThat(link.getValue().getDocumentId()).isEqualTo(response.documentId());
+        assertThat(link.getValue().getLinkId()).isEqualTo(LINK);
+        assertThat(link.getValue().getLinkType()).isEqualTo(LinkType.ORDER);
+    }
+
+    @Test
+    void initRejectsAnotherUsersOrderBeforeStorageOrPersistence() {
+        Order order = new Order();
+        order.setId(LINK);
+        order.setUserId(UUID.randomUUID().toString());
+        when(orders.findById(LINK)).thenReturn(Optional.of(order));
+
+        assertThatThrownBy(() -> service.init(LINK, request("ORDER", 10L, null), USER))
+                .satisfies(t -> status(t, HttpStatus.FORBIDDEN));
+
+        verifyNoInteractions(storage, docs, links, publisher);
+    }
+
+    @Test
+    void initRequiresUserIdBeforeStorageOrPersistence() {
+        assertThatThrownBy(() -> service.init(LINK, request("ORDER", 10L, null), null))
+                .satisfies(t -> status(t, HttpStatus.UNAUTHORIZED));
+
+        verifyNoInteractions(storage, docs, links, items, orders, publisher);
     }
 
     @Test
