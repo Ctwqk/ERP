@@ -35,6 +35,3 @@ Thumbs.db
 
 # Compose overrides for local experiments
 docker-compose.override.yml
-
-# Local verification output
-pu-erp-work/
