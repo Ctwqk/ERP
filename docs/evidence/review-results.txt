@@ -1,5 +1,5 @@
 Independent ERP review — 2026-10-19 (America/Los_Angeles)
-Repository: Ctwqk/ERP, branch: portfolio-upgrade
+Repository: Ctwqk/ERP
 Review base: 4797abdd958384d66ee9417eb298b740049ffe21
 
 Baseline verification
@@ -37,15 +37,6 @@ task-service: unit=32 integration=5
 user-service: unit=6 integration=6
 Total: 196 tests (156 unit + 40 integration); failures=0, errors=0, skipped=0
 
-Verification isolation
-  Every heavy stage held /home/taiwei/portfolio-upgrade/.heavy.lock.
-  systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0
-  Observed cgroup: memory.max=6442450944, memory.swap.max=0.
-  Every stage waited for at least 8 GiB MemAvailable.
-  MAVEN_OPTS=-Xmx512m; JAVA_TOOL_OPTIONS=-Xmx512m; forkCount=1.
-  Test containers: memory=536870912, memory+swap=536870912, CPUs=2 each.
-  Scratch/resource prefix: pu-review-erp-ferankz (unique to this review).
-
 An initial scratch-only attempt was superseded: preserved file timestamps caused
 Maven to reuse one old test class, and an invalid temporary image tag prevented
 the smoke build. A clean rebuild and corrected scratch prefix resolved these;
@@ -58,33 +49,6 @@ Other documented commands
   BUILD SUCCESS: 19 unit + 5 integration tests, 10.711 sec.
   VERBOSE=1 ./scripts/stack-smoke.sh
   SMOKE TEST PASSED (83 checks)
-
-Observed final-stage MemAvailable (GiB)
-  Available GiB: 9.88877
-  Available GiB: 9.88113
-  Available GiB: 9.52322
-  Available GiB: 9.58479
-  Available GiB: 9.62878
-
-Configured stack limits and observed usage
-  /pu-review-erp-ferankz-auth-service memory=805306368 swap=805306368 cpus=2000000000
-  /pu-review-erp-ferankz-inventory-service memory=805306368 swap=805306368 cpus=2000000000
-  /pu-review-erp-ferankz-item-service memory=805306368 swap=805306368 cpus=2000000000
-  /pu-review-erp-ferankz-minio memory=536870912 swap=536870912 cpus=2000000000
-  /pu-review-erp-ferankz-notification-service memory=805306368 swap=805306368 cpus=2000000000
-  /pu-review-erp-ferankz-postgres memory=536870912 swap=536870912 cpus=2000000000
-  /pu-review-erp-ferankz-rabbitmq memory=805306368 swap=805306368 cpus=2000000000
-  /pu-review-erp-ferankz-redis memory=134217728 swap=134217728 cpus=2000000000
-  /pu-review-erp-ferankz-task-service memory=805306368 swap=805306368 cpus=2000000000
-  pu-review-erp-ferankz-auth-service: 394.3MiB / 768MiB
-  pu-review-erp-ferankz-inventory-service: 265MiB / 768MiB
-  pu-review-erp-ferankz-item-service: 354.4MiB / 768MiB
-  pu-review-erp-ferankz-minio: 79.1MiB / 512MiB
-  pu-review-erp-ferankz-notification-service: 269MiB / 768MiB
-  pu-review-erp-ferankz-postgres: 133.4MiB / 512MiB
-  pu-review-erp-ferankz-rabbitmq: 144.4MiB / 768MiB
-  pu-review-erp-ferankz-redis: 8.27MiB / 128MiB
-  pu-review-erp-ferankz-task-service: 269.1MiB / 768MiB
 
 Cleanup: the wrapper exited 0 after removing all nine review containers, all
 three review volumes, and the review network. Independent Docker queries found

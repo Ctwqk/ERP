@@ -82,7 +82,7 @@ docker compose up -d --build --wait --wait-timeout 180
 ./scripts/smoke-test.sh
 ```
 
-Images copy the jars produced by Maven; **rerun Maven before rebuilding images after Java changes**. The root Compose file includes [`docker/docker-compose.yml`](docker/docker-compose.yml). All published ports bind to `127.0.0.1` in the 41000–49999 range; every container has memory/CPU limits and a `pu-erp-` name. `.env.example` contains public, disposable development credentials, not production secrets.
+Images copy the jars produced by Maven; **rerun Maven before rebuilding images after Java changes**. The root Compose file includes [`docker/docker-compose.yml`](docker/docker-compose.yml). All published ports bind to `127.0.0.1` in the 41000–49999 range; every container has memory/CPU limits and an `erp-` name. `.env.example` contains public, disposable development credentials, not production secrets.
 
 For a disposable demonstration that always tears down containers **and data**, use this instead of the last two commands:
 
@@ -99,8 +99,6 @@ docker compose down                  # retain database/object-store data
 # Only when you intend to discard local demo data:
 docker compose down --volumes
 ```
-
-**Shared hosts:** do not run builds or a stack alongside other heavy jobs. On the verification workstation, both Maven and the complete stack-smoke script run under a shared `flock` and a `systemd-run --user --scope` with `MemoryMax=6G` and `MemorySwapMax=0`, after checking at least 8 GiB is available. See [verification evidence](docs/verification.md) for exact commands. JVM heaps are capped at 512 MiB, Maven test forks at one, and Testcontainers instances at 512 MiB each. Docker daemon workloads have their own container limits because a client process scope does not constrain the Docker daemon.
 
 ### Local addresses
 
@@ -169,9 +167,9 @@ The smoke script creates catalog records, uploads a workbook to MinIO, and waits
 
 Surefire runs `*Test`; Failsafe runs `*IT`. Coverage includes inventory arithmetic and concurrent withdrawals, BOM activation/scrap, order totals/ownership/transitions/imports, task prerequisites/transitions, HTTP token forwarding/error handling, JWT/role rules, and notification ownership/deduplication. Integration tests use real PostgreSQL, Redis, RabbitMQ, and MinIO. Some service-level tests substitute downstream HTTP ports; the full-stack smoke test uses all real services and issued tokens.
 
-Testcontainers uses Spring-managed lifecycle cleanup plus its JVM shutdown hook. The auxiliary Ryuk/startup-check containers are disabled so every test container follows the shared-host resource policy. After a hard-killed test JVM, remove only matching `pu-erp-test-*` containers. A Docker daemon on the local machine is expected for the high-loopback-port allocation.
+Testcontainers uses Spring-managed lifecycle cleanup plus its JVM shutdown hook. The auxiliary Ryuk/startup-check containers are disabled so every test container follows the `ContainerLimits` resource policy. After a hard-killed test JVM, remove only matching `pu-erp-test-*` containers. A Docker daemon on the local machine is expected for the high-loopback-port allocation.
 
-[GitHub Actions](.github/workflows/ci.yml) runs on pushes and pull requests: Java 17 reactor verification, image builds, full-stack smoke, unconditional cleanup, and test-report/transcript artifacts. Local verification, CI, and runtime images use Java 17. The workstation also has a Java 21 runtime, but its Java 17 installation supplies the compiler.
+[GitHub Actions](.github/workflows/ci.yml) runs on pushes and pull requests: Java 17 reactor verification, image builds, full-stack smoke, unconditional cleanup, and test-report/transcript artifacts. Local verification, CI, and runtime images use Java 17.
 
 ## Layout and technology
 
@@ -196,7 +194,7 @@ Spring Security OAuth2 resource servers · Spring Data JPA/Hibernate · Flyway �
 - The five databases share one PostgreSQL process and development database credentials. Production would need per-service credentials, TLS, external secrets, backups and operational monitoring.
 - Event publication occurs **after database commit**, without a transactional outbox or publisher-confirm recovery. A crash in that gap can lose an event. Consumers retry three times; exhausted messages are discarded, with no dead-letter recovery UI. Add an outbox and dead-letter queues before relying on this operationally.
 - Notification deduplication has a database unique key. Spreadsheet imports lock the source document and record a unique source-document ID on the resulting order, so concurrent imports return the same order. Ordinary attachments do not count as import provenance. Inventory movements have row locks; other workflows do not claim full concurrent-update protection.
-- Stock checks are advisory, not reservations. BOM explosion is one level with no unit conversions. Manufacturing-order entities are retained but a full production-planning workflow is unfinished.
+- Stock checks are advisory, not reservations. BOM explosion is one level with no unit conversions. Manufacturing-order tables are retained but a full production-planning workflow is unfinished.
 - Presigned upload URLs remain usable until expiry; completed objects are not immutable. Document deletion spans SQL and object storage without a distributed transaction. Add object versioning, stronger file validation and reconciliation for production use.
 - Flyway migrations initialize **fresh databases**. There is no verified upgrade path from legacy hand-created schemas. Earlier demo imports have no reliable source-document record: recreate disposable demo data or reconcile those orders before re-importing old spreadsheets after migration V3.
 - The pinned Chainguard MinIO image makes the demo repeatable; update image digests and dependency versions deliberately with the same integration/smoke checks.

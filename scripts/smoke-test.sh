@@ -22,7 +22,7 @@ ADMIN_PASSWORD="${ADMIN_PASSWORD:-${ERP_ADMIN_PASSWORD:?set ADMIN_PASSWORD or ER
 VERBOSE="${VERBOSE:-0}"
 
 RUN="$(date +%s)$RANDOM"
-TMP="$(mktemp -d "${TMPDIR:-/tmp}/pu-erp-smoke-XXXXXX")"
+TMP="$(mktemp -d "${TMPDIR:-/tmp}/erp-smoke-XXXXXX")"
 trap 'rm -rf "$TMP"' EXIT
 STATUS=""; BODY=""
 : > "$TMP/checks"
